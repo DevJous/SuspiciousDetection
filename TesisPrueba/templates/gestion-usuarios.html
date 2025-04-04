@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BoiPose | Gestion Usuarios</title>
+    <link rel="stylesheet" href="../static/styles/gestion-usuarios.css">
+    <link rel="stylesheet" href="../static/styles/header.css">
+    <link rel="stylesheet" href="../static/styles/sidebar.css">
+    <link rel="icon" href="../static/assets/logo.png">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+<body>
+    {% extends "navegacion.html" %}
+
+    {% block content %}
+    <div class="container_main">
+        <div class="content_title">
+            <h1>Gestión de usuarios</h1>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Nombre Completo</th>
+                    <th>Identificacion</th>
+                    <th>Correo</th>
+                    <th>Rol</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-cuerpo">
+
+            </tbody>
+        </table>
+    </div>
+
+    <!------- MODAL EDITAR USUARIO --------------->
+    <div class="modal_edit_user" id="modal_edit_user">
+        <div class="card-body">
+            <h5 class="card-title">Editar Usuario</h5>
+            <div class="mb-3">
+                <label class="form-label">Identificación:</label>
+                <input type="email" class="form-control" id="identificationEdited" aria-describedby="emailHelp">
+                <div class="content-message-error">
+                    <p id="cedulaMessage" class="error-message"></p>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Nombres:</label>
+                <input type="email" class="form-control" id="nameEdited" aria-describedby="emailHelp">
+                <div class="content-message-error">
+                    <p id="nombreMessage" class="error-message"></p>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Apellidos:</label>
+                <input type="email" class="form-control" id="lastNameEdited" aria-describedby="emailHelp">
+                <div class="content-message-error">
+                    <p id="apellidoMessage" class="error-message"></p>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Correo electrónico:</label>
+                <input type="email" class="form-control" id="mailEdited" aria-describedby="emailHelp">
+                <div class="content-message-error">
+                    <p id="mailMessage" class="error-message"></p>
+                </div>
+            </div>
+            <div class="mb-3">
+                <div>
+                    <label class="form-label">Rol Actual:</label>
+                    <select id="rolEdited" class="form-select">
+                        <option class="form-control" value="1">Administrador</option>
+                        <option class="form-control" value="2">Visitante</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Estado Activado:</label>
+                    <input type="checkbox" id="stateEdited">
+                </div>
+            </div>
+            <div class="content_btnEdit">
+                <button type="button" class="btn btn-danger" id="btnCancelEdit" onclick="closeModalEditUser()">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btnGuardarEdit">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!------- MODAL ELIMINAR USUARIO --------------->
+    <div class="modal_delete_user" id="modal_delete_user">
+        <div class="content_options">
+            <div class="content_options_title">
+                <h2>¿Estás seguro de eliminar este usuario?</h2>
+                <span>El usuario será eliminado y ya no podrá acceder al sistema.</span>
+            </div>
+            <div class="content_options_buttons">
+                <button class="btnCancelOption" id="btnCancelOption" >No</button><!--onclick="closeModalDeleteUser()"-->
+                <button class="btnDeleteOption" id="btnDeleteOption">Si</button>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='scripts/gestion-usuarios.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
+    {% endblock %}
+</body>
+</html>
+

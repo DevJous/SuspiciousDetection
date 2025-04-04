@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="../static/styles/parametrizacion-rutas.css">
+    <link rel="stylesheet" href="../static/styles/header.css">
+    <link rel="stylesheet" href="../static/styles/sidebar.css">
+    <link rel="icon" href="../static/assets/logo.png">
+    <script src="https://cdn.jsdelivr.net/npm/jwt-decode/build/jwt-decode.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <title>BoiPose | Parametrizacion</title>
+</head>
+<body>
+    {% extends "navegacion.html" %}
+
+    {% block content %}
+    <div class="main_container_routes" id="main_container_routes">
+        <div class="container_routes_title">
+            <h1>Configuración de Archivos</h1>
+        </div>
+        <div class="content_parametrization">
+            <section class="parametrizar_ruta">
+                <h5>Parametrización de Rutas</h5>
+                <div class="main_route">
+                    <div class="content_configuration">
+                        <div class="content_configuration_elements">
+                            <label>Ruta Principal:</label>
+                            <input type="text" id="folderInput" placeholder="Pega aqui la ruta que tendra tu proyecto completo">
+                        </div>
+                        <div id="container_button_save" class="button_save" onclick="saveMainPath()">
+                            <button id="button_save">Guardar configuración</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="parametrizar_video">
+                <h5>Parametrización de FPS</h5>
+                <div class="content-select-fps">
+                    <input type="number" class="select-option_" id="txtNumberFPS" placeholder="No tienes parametrizado un valor" oninput="if(this.value.length > 2) this.value = this.value.slice(0,2)" min="1" max="24">
+                    <p> FPS</p>
+                    <div class="icon_edit_button">
+                        <i id="icon_edit_button" class="bi bi-pencil-square" onclick="enabledSelectFrame()"></i>
+                    </div>
+                    <div class="icon_delete_button">
+                        <i id="iconSaveNewFrame" class="bi bi-floppy" onclick="saveNewFrame()"></i>
+                    </div>
+                    <div class="icon_cancel_option" onclick="cancelSelectFrame()">
+                        <i id="icon_cancel_option" class="bi bi-x-square"></i>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <section class="content_table">
+            <h2>Rutas Parametrizadas Actualmente</h2>
+            <div class="add_route_button">
+                <button onclick="openModalCreatePath()">Agregar Nueva Carpeta</button>
+            </div>
+            <table>
+            <thead>
+                <tr>
+                    <th>Id</th>
+                    <th>Directorio</th>
+                    <th>Fecha Creacion</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-cuerpo">
+
+            </tbody>
+        </table>
+        </section>
+
+    </div>
+
+    <!------- MODAL CREACION NUEVA RUTA ------->
+    <div class="modal_create_folder" id="modal_create_folder">
+        <div class="modal_background" id="modal_background">
+            <div class="modal_main_content">
+                <div class="content_title_modal">
+                    <h2>Agregar Nueva Carpeta</h2>
+                </div>
+                <div class="content_modal_input">
+                    <input type="text" id="inputFolderName" placeholder="Ingresa el nombre que tendra tu carpeta">
+                    <label for="folderInput">
+                        <img id="folder_icon" src="../static/assets/folder_icon.png" alt="Logo">
+                    </label>
+                </div>
+                <div class="content_modal_buttons">
+                    <button id="close" class="close_button" onclick="closeModal()">Cancelar</button>
+                    <button id="save" class="save_button" onclick="saveNewFolder()">Crear Carpeta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!------- MODAL ELIMINAR RUTA --------------->
+    <div class="modal_delete_path" id="modal_delete_path">
+        <div class="content_options">
+            <div class="content_options_title">
+                <h2>¿Estás seguro de eliminar la carpeta?</h2>
+                <span>Se perderán todas las imágenes que contenga el directorio</span>
+            </div>
+            <div class="content_options_buttons">
+                <button class="btnCancelOption" onclick="closeModalOptions()">No</button>
+                <button class="btnDeleteOption" id="btnDeleteOption">Si</button>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='scripts/parametrizacion-rutas.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
+    {% endblock %}
+</body>
+</html>

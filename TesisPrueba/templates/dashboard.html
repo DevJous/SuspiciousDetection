@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="../static/styles/dashboard.css">
+    <link rel="stylesheet" href="../static/styles/verify_images.css">
+    <link rel="stylesheet" href="../static/styles/header.css">
+    <link rel="stylesheet" href="../static/styles/sidebar.css">
+    <link rel="icon" href="../static/assets/logo.png">
+    <title>BoiPose | Inicio</title>
+</head>
+<body>
+    {% extends "navegacion.html" %}
+
+    {% block content %}
+    <section class="main_section_container" id="main_section_container">
+        <div class="content_first_section">
+            <div class="section_first_left">
+                <h1>¿Qué es BoiPose?</h1>
+                <h3>Estimación de poses humanas</h3>
+
+                <p>BoiPose utiliza como base MediaPipe para estimar las diferentes poses del cuerpo humano y generar 14 keypoints como puntos claves al realizar la estimacion.</p>
+            </div>
+            <div class="section_first_rigth">
+                <img src="https://aihub.qualcomm.com/_next/image?url=https%3A%2F%2Fqaihub-public-assets.s3.us-west-2.amazonaws.com%2Fqai-hub-models%2Fmodels%2Fopenpose%2Fweb-assets%2Fmodel_demo.png&w=1920&q=75">
+            </div>
+        </div>
+        <div class="content_second_section">
+            <div class="cards_container">
+                <h2>Lo que puedes lograr</h2>
+                <div class="cards">
+                    <div class="card_element">
+                        <div class="content_info_card" id="folder" onclick="viewConfiguration()">
+                            <h4>
+                                <a href="{{ url_for('configuration_path')}}" class="nav-link text-white">
+                                    Configuración Personalizada
+                                </a>
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="card_element">
+                        <div class="content_info_card" id="img" onclick="viewImages()">
+                            <h4>
+                                <a href="{{ url_for('upload')}}" class="nav-link text-white">
+                                    Detección en Imágenes
+                                </a>
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="card_element">
+                        <div class="content_info_card" id="video">
+                            <h4>
+                                <a href="{{ url_for('upload_videos')}}" class="nav-link text-white">
+                                    Detección en Videos
+                                </a>
+                            </h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content_third_section">
+            <div class="content_title">
+                <h2 class="title_third_section">Tiempos de respuesta más rápidos con MediaPipe </h2>
+            </div>
+            <div class="container_graphic_compare">
+                <div class="openpose_card">
+                    <img src="../static/assets/Openpose.png">
+                    <h2>OpenPose</h2>
+                </div>
+                <div class="mediapipe_card">
+                    <img src="../static/assets/mediapipe.png">
+                    <h2>MediaPipe</h2>
+                </div>
+                <div class="yolo_card">
+                    <img src="../static/assets/yolo.png">
+                    <h2>Yolo</h2>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div id="modal_first_session" class="modal_first_session">
+        <div class="modal_first_session_sub">
+            <div class="bg_blur"></div>
+            <img src="../static/assets/say_hi_tutorial.gif">
+            <div class="content_modal_first_step">
+                <h1>Bienvenido <p id="userTutorial" class="userTutorial"></p></h1>
+                <div class="content_form">
+                    <h3>Antes de continuar, completemos esto:</h3>
+                    <div class="content-elements">
+                        <label>¿Dónde guardaremos tus imágenes?</label>
+                        <p>Crea una carpeta en tu equipo y pega la ruta aqui</p>
+                        <input type="text" id="txtPath" placeholder="C:\ ruta_a_tu_carpeta">
+
+                        <label>¿Cada cuántos frames desea obtener una imagen?</label>
+                        <p>Puedes elegir entre 1 - 24 FPS <strong>(Frames Por Segundo)</strong></p>
+                        <input type="number" id="txtFPS" placeholder="Elige un valor" min="1" max="24">
+
+                        <div class="content_button">
+                            <button type="button" class="button_first_tutorial" onclick="saveFirstTutorial()">Continuar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% endblock %}
+
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/dashboard.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    {% endblock %}
+</body>
+</html>

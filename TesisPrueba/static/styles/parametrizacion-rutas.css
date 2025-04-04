@@ -1,0 +1,499 @@
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+.main_container_routes{
+    width:100%;
+    height:100%;
+    padding-top:15vh;
+    display:flex;
+    flex-direction:column;
+}
+
+.container_routes_title h1{
+    color:#0C56BC;
+    padding-left:10px;
+}
+
+.container_routes_title{
+    border-left:4px solid #0C56BC;
+    width:60%;
+    margin-left:5%;
+}
+
+.parametrizar_ruta{
+    width:50%;
+    height:25vh;
+    margin-left:5%;
+    color:rgba(0,0,0,0.8);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+    text-align:left;
+}
+
+.parametrizar_ruta h5{
+    width:90%;
+    font-weight:600;
+}
+.main_route{
+    width:90%;
+}
+
+.add_route_button{
+    width:100%;
+    height:50px;
+    display:flex;
+    justify-content:flex-end;
+}
+.add_route_button button{
+    width:200px;
+    height:40px;
+    border-radius:5px;
+    background-color:#0C56BC;
+    color:#ffffff;
+    border:none;
+    font-size:0.9rem;
+    font-weight:500;
+    transition:200ms all ease-in-out;
+}
+.add_route_button button:hover{
+    font-weight:700;
+    cursor:pointer;
+    transition:200ms all ease-in-out;
+}
+
+.content_configuration{
+    width:100%;
+    height:10vh;
+    display:flex;
+    align-items:center;
+    flex-direction:column;
+}
+
+.content_configuration_elements{
+    width:100%;
+    height:100px;
+    display:flex;
+    justify-content:flex-start;
+    flex-direction:column;
+}
+.content_configuration_elements label{
+    width:40%;
+    font-weight:600;
+}
+.content_configuration_elements label img{
+    width:25px;
+    height:25px;
+    margin-left:10px;
+    cursor:pointer;
+}
+
+.content_configuration .button_save{
+    width:100%;
+    height:60px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+.button_save button{
+    width:220px;
+    height:30px;
+    background-color:#5ed606;
+    color:#ffffff;
+    border:none;
+    border-radius:5px;
+}
+.button_save button:hover{
+    cursor:pointer;
+    font-weight:600;
+}
+
+#folderInput{
+    display: block;
+    width: 100%;
+    padding: .375rem 2.25rem .375rem .75rem;
+    -moz-padding-start: calc(0.75rem - 3px);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    background-image: url(data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e);
+    background-repeat: no-repeat;
+    background-position: right .75rem center;
+    background-size: 16px 12px;
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+/* Estilo del botón personalizado */
+.custom-button {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: center;
+}
+
+.custom-button:hover {
+    background-color: #0056b3;
+}
+
+/****************** CONFIGURACION DE TABLAS ********************/
+.content_table{
+    width:90%;
+    height:80vh;
+    margin:0 auto;
+}
+.content_table h2{
+    padding:7px 5px;
+    border-left:4px solid #0C56BC;
+    color:#0C56BC;
+    font-size:1.8rem;
+}
+table{
+    width:100%;
+    height:auto;
+    border-collapse: collapse;
+    text-align: left;
+    border:1px solid rgba(0,0,0,0.1);
+}
+
+thead{
+    height:40px;
+}
+
+thead tr{
+    background-color:blue;
+}
+
+thead tr th{
+    text-align:center;
+    color:#ffffff;
+    padding:5px 10px;
+}
+
+tbody tr td{
+    text-align:center;
+    padding:5px 30px;
+}
+
+
+
+
+
+/************************* modal creacion ruta ***********/
+.modal_create_folder{
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    z-index:3;
+    width:100vw;
+    height:100vh;
+    background-color:rgba(0,0,0,0.1);
+}
+.modal_background{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    position:absolute;
+    top:0;
+    left:0;
+    z-index:3;
+    width:100vw;
+    height:100vh;
+    background-color:rgba(0,0,0,0.1);
+}
+
+.modal_main_content{
+    width:50%;
+    height:40vh;
+    border-radius:5px;
+    background-color:#ffffff;
+    box-shadow:0px 0px 50px rgb(0,0,0);
+}
+
+.content_title_modal h2{
+    color:#0C56BC;
+    text-align:center;
+    line-height:60px;
+    width:100%;
+    height:60px;
+}
+
+.content_modal_input, .content_modal_buttons{
+    width:90%;
+    height:100px;
+    margin:0 auto;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-direction:row;
+}
+#inputFolderName{
+    width:70%;
+    height:30px;
+    border-radius:5px;
+    border:2px solid #478ae6;
+    padding:7px 7px;
+}
+#inputFolderName:focus{
+    outline:2px solid #0C56BC;
+}
+.content_modal_input label img{
+    height:30px;
+    margin-left:10px;
+}
+
+.content_modal_buttons .close_button, .content_modal_buttons .save_button{
+    border:none;
+    color:#ffffff;
+    font-weight:500;
+    font-size:1rem;
+}
+
+.content_modal_buttons .close_button{
+    background-color:red;
+    margin-right:5%;
+    width:120px;
+    height:50px;
+    transition:400ms all ease-in-out;
+}
+
+.content_modal_buttons .save_button{
+    background-color:green;
+    width:150px;
+    height:50px;
+    transition:400ms all ease-in-out;
+}
+
+.content_modal_buttons .close_button:hover,
+.content_modal_buttons .save_button:hover{
+    cursor:pointer;
+    font-weight:600;
+    border-radius:10px;
+    transition:400ms all ease-in-out;
+}
+
+button{
+    width:30px;
+    height:30px;
+    border:none;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+button .edit{
+    background-color:none;
+    color:#ffffff;
+    transition:200ms all ease-in-out;
+}
+button .edit:hover{
+    background-color:green;
+    transition:200ms all ease-in-out;
+}
+
+button .delete{
+    background-color:none;
+    color:#ffffff;
+    transition:200ms all ease-in-out;
+}
+button .delete:hover{
+    background-color:red;
+    transition:200ms all ease-in-out;
+}
+
+.content_parametrization{
+    display:flex;
+    flex-direction:row;
+}
+
+.parametrizar_video{
+    width:35%;
+    height:25vh;
+    margin-left:5%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+}
+.parametrizar_video .content-select-fps{
+    width:50%;
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    justify-content:center;
+}
+
+.parametrizar_video .content-select-fps i{
+    font-size:1.2rem;
+}
+.bi-pencil-square{
+    color:#00B871;
+    display:block;
+    cursor:pointer;
+    margin-left:5px;
+    padding:0px 5px;
+    transition:200ms all ease-in-out;
+}
+.icon_edit_button, .icon_delete_button, .icon_cancel_option{
+    height:25px;
+    width:60px;
+}
+.bi-pencil-square:hover{
+    background-color:#00B871;
+    color:#ffffff;
+    border-radius:4px;
+    transition:200ms all ease-in-out;
+}
+
+.bi-floppy{
+    color:#3c94ff;
+    display:none;
+    cursor:pointer;
+    transition:200ms all ease-in-out;
+    padding:0px 5px;
+    margin-left:5px;
+}
+.bi-floppy:hover{
+    background-color:#3c94ff;
+    color:#ffffff;
+    border-radius:4px;
+    transition:200ms all ease-in-out;
+}
+
+.bi-x-square{
+    color:red;
+    display:none;
+    cursor:pointer;
+    transition:200ms all ease-in-out;
+    padding:0px 5px;
+}
+
+.bi-x-square:hover{
+    background-color:#FF0009;
+    color:#ffffff;
+    display:none;
+    cursor:pointer;
+    transition:200ms all ease-in-out;
+    padding:0px 5px;
+    border-radius:4px;
+}
+
+.parametrizar_video .content-select-fps p{
+    margin:0 0 0 15px;
+}
+.select-option_{
+    /*display: block;*/
+    padding: .375rem 2.25rem .375rem .75rem;
+    -moz-padding-start: calc(0.75rem - 3px);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    background-image: url(data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e);
+    background-repeat: no-repeat;
+    background-position: right .75rem center;
+    background-size: 16px 12px;
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+
+/********************* modal eliminar rutas *************************/
+
+.modal_delete_path{
+    position:fixed;
+    top:0;
+    left:0;
+    background-color:rgba(240, 240, 240, 0.7);
+    width:100%;
+    height:100vh;
+    z-index:2;
+    display:none;
+    transition:400ms ease-in;
+}
+
+.content_options{
+    width:350px;
+    height:30vh;
+    border:none;
+    border-radius:5px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.7);
+    background-color:#ffffff;
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+}
+
+.content_options_title{
+    width:90%;
+    height:15vh;
+    margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+}
+
+.content_options_title h2{
+    font-size:1rem;
+}
+
+.content_options_title span{
+    font-size:0.6rem;
+}
+
+.content_options_buttons{
+    width:90%;
+    height:15vh;
+    margin:0 auto;
+    display:flex;
+    justify-content:space-around;
+    align-items:center;
+}
+
+.btnCancelOption, .btnDeleteOption{
+    width:40%;
+    height:30px;
+    border-radius:4px;
+    border:none;
+    color:#ffffff;
+}
+.btnCancelOption{
+    background-color:red;
+}
+.btnDeleteOption{
+    background-color:rgba(98, 218, 10);
+}
+.btnCancelOption:hover, .btnDeleteOption:hover{
+    cursor:pointer;
+    font-weight:700;
+}
+.btnCancelOption:hover{
+    background-color:red;
+}
+.btnDeleteOption:hover{
+    background-color:rgb(5, 193, 5 );
+}

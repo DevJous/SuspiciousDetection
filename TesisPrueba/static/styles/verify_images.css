@@ -1,0 +1,113 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.main_container_verify{
+    width:100vw;
+    height:100vh;
+}
+
+.main_subcontainer{
+    padding-top:20vh;
+    width:90vw;
+    height:auto;
+    margin:0 auto;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+}
+.content_menu{
+    width:100%;
+    display:flex;
+    flex-direction:row;
+    justify-content:center;
+    flex-wrap:wrap;
+}
+.content_options_verify{
+    width:50%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-direction:column;
+    position:relative;
+}
+.content_image{
+    width:300px;
+    height:445px;
+    display:flex;
+    justify-content:center;
+    flex-direction:column;
+    align-items:center;
+    border-radius:25px;
+    box-shadow:0px 20px 20px rgba(0,0,0,0.4);
+    position:relative;
+    overflow:hidden;
+}
+.content_image img{
+    width:300px;
+}
+.content_image h3{
+    font-size:0.8rem;
+    color:rgba(0,0,0,0.4);
+    font-weight:600;
+}
+
+.content_paths, .content_file{
+    margin:10px 0px;
+    display:flex;
+    flex-direction:column;
+}
+
+.content_paths label, .content_file label{
+    width:250px;
+    height:30px;
+    line-height:30px;
+    font-weight:700;
+}
+
+.content_paths select, .content_file select{
+    width:350px;
+    height:35px;
+    background-color: #f0f0f0;
+    color: #333;
+    border: 1px solid #007bff;
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    appearance: none;
+    cursor: pointer;
+}
+
+.content_options_verify button{
+    width:350px;
+    height:40px;
+    border-radius:5px;
+    background-color:#2FDF84;
+    color:#ffffff;
+    font-weight:600;
+    border:none;
+    transition:200ms all ease-in-out;
+}
+.content_options_verify button:hover{
+    cursor:pointer;
+    background-color:#00B871;
+    transition:200ms all ease-in-out;
+}
+
+.point {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background-color: red;
+    border-radius: 50%;
+    border:1px solid #fff;
+    transform: translate(-50%, -50%);
+}

@@ -1,0 +1,230 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+*{
+    padding:0;
+    margin:0;
+    box-sizing:border-box;
+    font-family: 'Montserrat', sans-serif;
+}
+
+
+.container_main{
+    width:100vw;
+    height:100vh;
+}
+
+.content_title{
+    height:auto;
+    width:40%;
+    margin-left:5%;
+}
+.content_title h1{
+    padding-top:100px;
+    color:#000000;
+    font-size:2rem;
+    border-bottom:5px solid blue;
+}
+table{
+    width:90%;
+    margin:30px auto 0 auto;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+thead{
+    height:40px;
+}
+
+thead tr{
+    border-top-left-radius:10px;
+    border-top-right-radius:10px;
+}
+
+thead tr th{
+    text-align:center;
+    background-color:blue;
+    color:#ffffff;
+}
+
+tbody tr td{
+    text-align:center;
+    padding:5px 0;
+}
+
+button{
+    width:30px;
+    height:30px;
+    border:none;
+}
+
+button .edit{
+    background-color:green;
+    color:#ffffff;
+}
+
+button .delete{
+    background-color:red;
+    color:#ffffff;
+}
+
+/********************* modal eliminar usuario *************************/
+
+.modal_delete_user{
+    position:fixed;
+    top:0;
+    left:0;
+    background-color:rgba(240, 240, 240, 0.7);
+    width:100%;
+    height:100vh;
+    z-index:2;
+    display:none;
+    transition:400ms ease-in;
+}
+
+.content_options{
+    width:350px;
+    height:30vh;
+    border:none;
+    border-radius:5px;
+    box-shadow:0px 0px 10px rgba(0,0,0,0.7);
+    background-color:#ffffff;
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+}
+
+.content_options_title{
+    width:90%;
+    height:15vh;
+    margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+}
+
+.content_options_title h2{
+    font-size:1rem;
+}
+
+.content_options_title span{
+    font-size:0.6rem;
+}
+
+.content_options_buttons{
+    width:90%;
+    height:15vh;
+    margin:0 auto;
+    display:flex;
+    justify-content:space-around;
+    align-items:center;
+}
+
+.btnCancelOption, .btnDeleteOption{
+    width:40%;
+    height:30px;
+    border-radius:4px;
+    border:none;
+    color:#ffffff;
+}
+.btnCancelOption{
+    background-color:red;
+}
+.btnDeleteOption{
+    background-color:rgba(98, 218, 10);
+}
+.btnCancelOption:hover, .btnDeleteOption:hover{
+    cursor:pointer;
+    font-weight:700;
+}
+.btnCancelOption:hover{
+    background-color:red;
+}
+.btnDeleteOption:hover{
+    background-color:rgb(5, 193, 5 );
+}
+
+.error-message {
+    color: #e74c3c; 
+    font-size: 12px;
+    margin: 0px;
+}
+
+
+
+/********************* modal editar uusuario *************************/
+.modal_edit_user{
+    position:fixed;
+    top:0;
+    left:0;
+    background-color:rgba(240, 240, 240, 0.7);
+    width:100%;
+    height:100vh;
+    z-index:2;
+    display:none;
+    transition:400ms ease-in;
+}
+
+.card-body{
+    width: 40%;
+    height:80%;
+    border:none;
+    border-radius:5px;
+    box-shadow:0px 0px 10px rgba(0, 0, 0, 0.3);
+    background-color:#ffffff;
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%, -50%);
+    overflow-y:auto;
+}
+
+.btn-danger, .btn-success{
+    width: 40%;
+    height: 40px;
+}
+
+.content_btnEdit{
+    /*height: 15vh;*/
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.content_btnEdit .btn{
+    margin: 0px 10px;
+}
+
+.modal_edit_user .card-body {
+    padding: 35px;
+}
+
+.rolEdited{
+    padding: .375rem 2.25rem .375rem .75rem;
+    -moz-padding-start: calc(0.75rem - 3px);
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    background-image: ;
+    background-repeat: no-repeat;
+    background-position: right .75rem center;
+    background-size: 16px 12px;
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+.form-select{
+    width:60%;
+}
+
+.form-label{
+    font-weight:500;
+    color:rgba(0,0,0,0.7);
+}

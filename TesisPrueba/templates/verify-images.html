@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Boi Pose | Verificar Imagenes</title>
+    <link rel="icon" href="../static/assets/logo.png">
+    <link rel="stylesheet" href="../static/styles/verify_images.css">
+</head>
+<body>
+    {% extends "navegacion.html" %}
+
+    {% block content %}
+    <section class="main_container_verify">
+        <div class="main_subcontainer">
+            <h1>Verificación de Imágenes</h1>
+            <div class="content_menu">
+                <div class="content_options_verify">
+                    <div class="content_paths">
+                        <label>Selecciona la ruta a cargar</label>
+                        <select class="form-select" id="paths">
+                            <option>Elige una ruta</option>
+                        </select>
+                        <p id="error-path" style="display:none;">Debes seleccionar una ruta</p>
+                    </div>
+                    <div class="content_file">
+                        <label>Elige un archivo a cargar</label>
+                        <select class="form-select" id="files">
+                            <optgroup label="Elige una opcion">
+                                <option>Elige un archivo</option>
+                            </optgroup>
+                        </select>
+                        <p id="error-file" style="display:none;">Debes seleccionar un archivo</p>
+                    </div>
+                        <button onclick="showImage()">Cargar Imagen</button>
+                </div>
+                <div class="content_image">
+                    <img id="image_result" src="../static/assets/not_image.png" >
+                    <h3 id="select_image">Selecciona primero una imagen...</h3>
+                </div>
+            </div>
+        </div>
+    </section>
+    {% endblock %}
+
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='scripts/verify_images.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
+    {% endblock %}
+</body>
+</html>
