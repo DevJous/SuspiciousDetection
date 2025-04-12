@@ -14,7 +14,7 @@ from shutil import copyfile
 from PIL import Image
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import psycopg2
-from Resources.QueriesProcedures import (validate_login_query,
+from resources.QueriesProcedures import (validate_login_query,
                                          create_account_query,
                                          update_session,
                                          insert_new_frame,
@@ -38,11 +38,11 @@ from Resources.QueriesProcedures import (validate_login_query,
                                          get_id_main_path_query_query,
                                          delete_folder_query
                                          )
-from Resources.Middleware import token_required
-from Resources.Middleware import get_key #, deserialize_token
+from resources.Middleware import token_required
+from resources.Middleware import get_key #, deserialize_token
 from model.PoseModule import poseDetector
-from Resources.Conexion import get_connection
-from Resources.Encrypt import  encrypt_password
+from resources.Conexion import get_connection
+from resources.Encrypt import  encrypt_password
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
