@@ -8,72 +8,95 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/header.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/sidebar.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-    <header>
-        <div class="content_logo">
-            <img src="{{ url_for('static', filename='assets/logotipo.png') }}">
-            <p id="name">Bienvenido, <span id="name-user"></span></p>
-        </div>
-    </header>
-    <nav id="nav" class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark" style="width: 280px;">
-        <div class="content_logo_sidebar">
-            <img src="{{ url_for('static', filename='assets/logotipo.png') }}" alt="">
-        </div>
-        <hr>
-        <ul class="nav nav-pills flex-column mb-auto">
-            <li class="nav-item">
-                <a href="{{ url_for('view_dashboard')}}" class="nav-link text-white">
-                    <i class="fas fa-home"></i>Home
-                </a>
-            </li>
+<header>
+    <div class="content_logo">
+        <img src="{{ url_for('static', filename='assets/logotipo.png') }}">
+        <p id="name">Bienvenido, <span id="name-user"></span></p>
+    </div>
+</header>
+<nav id="nav" class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark" style="width: 290px;">
+    <div class="content_logo_sidebar">
+        <img src="{{ url_for('static', filename='assets/logotipo.png') }}" alt="">
+    </div>
+    <hr>
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item">
+            <a href="{{ url_for('view_dashboard')}}" class="nav-link text-white">
+                <i class="fas fa-home"></i>Home
+            </a>
+        </li>
+        <li class="nav-item" id="user_control">
+            <a href="{{ url_for('manage_users')}}" class="nav-link text-white">
+                <i class="fa-solid fa-users-gear"></i>Gestión de Usuarios
+            </a>
+        </li>
+        <li class="nav-item dropdown">
+            <a href="#" class="nav-link text-white drop-btn">
+                <i class="fa-solid fa-chevron-down rotatable-icon"></i>Estimación de posturas
+            </a>
+            <ul class="dropdown-content">
+                <li class="nav-item">
+                    <a href="{{ url_for('configuration_path')}}" class="nav-link text-white">
+                        <i class="fa-solid fa-folder"></i>Configuración de rutas
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('upload')}}" class="nav-link text-white">
+                        <i class="fa-solid fa-image"></i>Detección en imagen
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('upload_videos')}}" class="nav-link text-white">
+                        <i class="fa-solid fa-film"></i>Detección en video
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('verify_images')}}" class="nav-link text-white">
+                        <i class="fa-solid fa-check-to-slot"></i>Verifica tus imágenes
+                    </a>
+                </li>
+            </ul>
+        </li>
+        <li class="nav-item dropdown">
+            <a href="#" class="nav-link text-white drop-btn">
+                <i class="fa-solid fa-chevron-down rotatable-icon"></i>Detección de anomalías
+            </a>
+            <ul class="dropdown-content">
+                <li class="nav-item">
+                    <a href="{{ url_for('configuration_path')}}" class="nav-link text-white">
+                        <i class="fa-solid fa-folder"></i>Configuración de rutas
+                    </a>
+                </li>
+            </ul>
+        </li>
+<!--        <li class="nav-item">-->
+<!--            <a href="#" onclick="viewCloseSession()" class="nav-link text-white">-->
+<!--                <i class="fa-solid fa-right-from-bracket"></i>Cerrar Sesión-->
+<!--            </a>-->
+<!--        </li>-->
+    </ul>
+    <div class="toggle_button" id="toggle_button">
+        <img id="toggle_icon" src="{{ url_for('static', filename='assets/forward_arrow_icon.png') }}">
+    </div>
+    <div class="logout mt-auto">
+        <a href="#" onclick="viewCloseSession()" class="nav-link text-white">
+            <i class="fa-solid fa-right-from-bracket"></i> Cerrar Sesión
+        </a>
+    </div>
+</nav>
 
-            <li class="nav-item" id="user_control">
-                <a href="{{ url_for('manage_users')}}" class="nav-link text-white">
-                    <i class="fa-solid fa-users-gear"></i>Gestión de Usuarios
-                </a>
-            </li>
-
-            <li class="nav-item">
-                <a href="{{ url_for('configuration_path')}}" class="nav-link text-white">
-                    <i class="fa-solid fa-folder"></i>Configuración de rutas
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="{{ url_for('upload')}}" class="nav-link text-white">
-                    <i class="fa-solid fa-image"></i>Detección en imagen
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="{{ url_for('upload_videos')}}" class="nav-link text-white">
-                    <i class="fa-solid fa-film"></i>Detección en video
-                </a>
-            </li>
-            <li class="nav-item">
-                <a href="{{ url_for('verify_images')}}" class="nav-link text-white">
-                    <i class="fa-solid fa-check-to-slot"></i>Verifica tus imagenes
-                </a>
-            </li>
-            <li class="nav-item">
-                <a onclick="viewCloseSession()" class="nav-link text-white">
-                    <i class="fa-solid fa-right-from-bracket"></i>Cerrar Sesión
-                </a>
-            </li>
-        </ul>
-        <div class="toggle_button" id="toggle_button">
-            <img id="toggle_icon" src="{{ url_for('static', filename='assets/forward_arrow_icon.png') }}">
-        </div>
-    </nav>
-
-    <main>
-        {% block content %}
-        {% endblock %}
-    </main>
-
-    {% block scripts %}
-        <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
+<main>
+    {% block content %}
     {% endblock %}
+</main>
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
+{% endblock %}
 </body>
 </html>

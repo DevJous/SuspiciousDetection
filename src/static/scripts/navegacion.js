@@ -2,6 +2,7 @@ const sidebar = document.getElementById('toggle_button');
 const nav = document.getElementById('nav');
 const name = document.getElementById('name-user');
 const toggleIcon = document.getElementById('toggle_icon');
+const dropdowns = document.querySelectorAll('.dropdown');
 
 let position = -280;
 
@@ -24,6 +25,33 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await getMenuOptions();
 });
+
+/*dropbutton.addEventListener('click', (e) => {
+    e.preventDefault();
+    const submenu = dropbutton.nextElementSibling;
+    submenu.style.display = submenu.style.display === 'block' ? 'none' : 'block';
+  });*/
+
+dropdowns.forEach(dropdown => {
+    const button = dropdown.querySelector('.drop-btn');
+    button.addEventListener('click', () => {
+      // Cierra todos los dropdowns excepto el actual
+      dropdowns.forEach(d => {
+        if (d !== dropdown) {
+          d.classList.remove('open');
+        }
+      });
+
+      dropdown.classList.toggle('open');
+    });
+  });
+
+  // Cerrar si se hace clic fuera
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown')) {
+      dropdowns.forEach(d => d.classList.remove('open'));
+    }
+  });
 
 async function viewCloseSession(){
     localStorage.removeItem('token');

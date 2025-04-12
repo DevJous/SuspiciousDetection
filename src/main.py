@@ -428,7 +428,10 @@ def get_menu_option():
             query = get_menu_options_query()
             cursor.execute(query,)
             result = cursor.fetchone()
-        return jsonify({'options': result[0]}), 200
+        if result is not None and len(result) > 0:
+            return jsonify({'options': result[0]}), 200
+        else:
+            return jsonify({'error': 'No se encontraron resultados'}), 404
 
     except psycopg2.Error as e:
         return jsonify({'authenticated': False, 'message': 'Error interno del servidor'}), 500

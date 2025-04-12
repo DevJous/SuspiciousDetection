@@ -78,7 +78,7 @@ window.onload = function() {
                 body: form
             });
             const data = await response.json();
-            console.log(data)
+            //console.log(data)
             if (data.authenticated) {
                 this.ruta = data.redirect_url;
                 localStorage.setItem('token',data.token)
