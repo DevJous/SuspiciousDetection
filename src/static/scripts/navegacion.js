@@ -4,14 +4,14 @@ const name = document.getElementById('name-user');
 const toggleIcon = document.getElementById('toggle_icon');
 const dropdowns = document.querySelectorAll('.dropdown');
 
-let position = -280;
+let position = -290;
 
 sidebar.addEventListener('click', () => {
-    if (position === -280) {
+    if (position === -290) {
         position = 0;
         toggleIcon.classList.add('rotated');
     } else {
-        position = -280;
+        position = -290;
         toggleIcon.classList.remove('rotated');
     }
     nav.style.left = `${position}px`;
@@ -25,12 +25,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await getMenuOptions();
 });
-
-/*dropbutton.addEventListener('click', (e) => {
-    e.preventDefault();
-    const submenu = dropbutton.nextElementSibling;
-    submenu.style.display = submenu.style.display === 'block' ? 'none' : 'block';
-  });*/
 
 dropdowns.forEach(dropdown => {
     const button = dropdown.querySelector('.drop-btn');

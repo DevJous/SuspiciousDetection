@@ -2,13 +2,15 @@ import datetime
 import io
 import traceback
 
-from flask import Flask, render_template, request, jsonify, json, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response
 import pyodbc
 import os
 import cv2 as cv
 import glob
 import jwt
 import base64
+import numpy as np
+from io import BytesIO
 from datetime import datetime, timedelta
 from shutil import copyfile
 from PIL import Image
@@ -41,6 +43,7 @@ from resources.QueriesProcedures import (validate_login_query,
 from resources.Middleware import token_required
 from resources.Middleware import get_key #, deserialize_token
 from model.PoseModule import poseDetector
+from src.detector.CameraController import CameraController
 from resources.Conexion import get_connection
 from resources.Encrypt import  encrypt_password
 
@@ -54,7 +57,12 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Crear el detector de poses
 detector = poseDetector()
+# Variable global para acceso a la cámara
+camera = None
 
+camera_controller = CameraController()
+
+#region RENDER_VIEWS_ROUTES
 
 #ROUTES
 @app.route('/')
@@ -94,8 +102,13 @@ def manage_users():
 def upload_videos():
     return render_template('upload-video.html')
 
+@app.route('/live-detection')
+def live_detection():
+    return render_template('live-detection.html')
 
+#endregion
 
+#region POSTURE_ESTIMATION_MODULE_ENDPOINTS
 #ENDPOINTS
 @app.route('/upload', methods=['POST'])
 def upload_image():
@@ -1047,7 +1060,27 @@ def save_first_tutorial_info():
         print(f"Error al ejecutar las consultas: {e}")
         return jsonify({'result': False, 'message': 'Error interno del servidor'}), 500
 
+#endregion
 
+#region SUSPICIOUS_DETECTION_MODULE_ENDPOINTS
+@app.route('/video_feed', methods=['POST'])
+def video_feed():
+    if 'frame' not in request.files:
+        return 'No se recibió imagen', 400
+
+    file = request.files['frame']
+    img_bytes = file.read()
+
+    processed = camera_controller.process_frame_from_bytes(img_bytes)
+
+    if processed is None:
+        return 'Error al procesar imagen', 500
+
+    _, buffer = cv.imencode('.jpg', processed)
+    return Response(buffer.tobytes(), mimetype='image/jpeg')
+    # return Response(camera_controller.generate_frames(),
+    #                 mimetype='multipart/x-mixed-replace; boundary=frame')
+#endregion
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

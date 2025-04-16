@@ -1,0 +1,38 @@
+import cv2 as cv
+
+# Variable global para acceso a la cámara
+camera = None
+
+
+def get_camera():
+    global camera
+    if camera is None:
+        camera = cv2.VideoCapture(0)  # 0 representa la webcam predeterminada
+    return camera
+
+
+def release_camera():
+    global camera
+    if camera is not None:
+        camera.release()
+        camera = None
+
+
+def generate_frames():
+    cam = get_camera()
+
+    while True:
+        success, frame = cam.read()
+        if not success:
+            break
+
+        # Procesar el frame con nuestro detector
+        processed_frame = detector.process_frame(frame)
+
+        # Convertir el frame a formato JPEG para streaming
+        ret, buffer = cv2.imencode('.jpg', processed_frame)
+        frame_bytes = buffer.tobytes()
+
+        # Enviar el frame como parte del stream
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
