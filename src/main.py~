@@ -9,14 +9,12 @@ import cv2 as cv
 import glob
 import jwt
 import base64
-import numpy as np
-from io import BytesIO
 from datetime import datetime, timedelta
 from shutil import copyfile
 from PIL import Image
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import psycopg2
-from resources.QueriesProcedures import (validate_login_query,
+from Resources.QueriesProcedures import (validate_login_query,
                                          create_account_query,
                                          update_session,
                                          insert_new_frame,
@@ -40,13 +38,11 @@ from resources.QueriesProcedures import (validate_login_query,
                                          get_id_main_path_query_query,
                                          delete_folder_query
                                          )
-from resources.Middleware import token_required
-from resources.Middleware import get_key #, deserialize_token
+from Resources.Middleware import token_required
+from Resources.Middleware import get_key  # , deserialize_token
 from model.PoseModule import poseDetector
-from src.detector.CameraController import CameraController
-from model.BehaviorDetector import BehaviorDetector
-from resources.Conexion import get_connection
-from resources.Encrypt import  encrypt_password
+from Resources.Conexion import get_connection
+from Resources.Encrypt import encrypt_password
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -58,96 +54,64 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Crear el detector de poses
 detector = poseDetector()
-# Crear el detector de comportamiento
-suspicious_detector = BehaviorDetector()
-# Variable global para acceso a la cámara
-camera = None
-
-camera_controller = CameraController()
-
-#region UTILS_METHODS
-def get_camera():
-    global camera
-    if camera is None:
-        camera = cv.VideoCapture(0)  # 0 representa la webcam predeterminada
-    return camera
 
 
-def release_camera():
-    global camera
-    if camera is not None:
-        camera.release()
-        camera = None
-
-
-def generate_frames():
-    cam = get_camera()
-
-    while True:
-        success, frame = cam.read()
-        if not success:
-            break
-
-        # Procesar el frame con nuestro detector
-        processed_frame = suspicious_detector.process_frame(frame)
-
-        # Convertir el frame a formato JPEG para streaming
-        ret, buffer = cv.imencode('.jpg', processed_frame)
-        frame_bytes = buffer.tobytes()
-
-        # Enviar el frame como parte del stream
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-#endregion
-
-#region RENDER_VIEWS_ROUTES
-
-#ROUTES
+# region RENDER_VIEWS_ROUTES
+# ROUTES
 @app.route('/')
 def index():
     return redirect(url_for('login'))
+
 
 @app.route('/upload-image')
 def upload():
     return render_template('index.html')
 
+
 @app.route('/login')
 def login():
     return render_template('login.html')
+
 
 @app.route('/create_account')
 def create_accountView():
     return render_template('create-account.html')
 
+
 @app.route('/configuration_path')
 def configuration_path():
     return render_template('parametrizacion-rutas.html')
 
+
 @app.route('/verify-images')
 def verify_images():
     return render_template('verify-images.html')
+
 
 @app.route('/dashboard')
 def view_dashboard():
     print('view_dashboard')
     return render_template('dashboard.html')
 
+
 @app.route('/gestion-usuarios')
 def manage_users():
     return render_template('gestion-usuarios.html')
+
 
 @app.route('/upload-videos')
 def upload_videos():
     return render_template('upload-video.html')
 
+
 @app.route('/live-detection')
 def live_detection():
     return render_template('live-detection.html')
 
-#endregion
+# endregion
 
-#region POSTURE_ESTIMATION_MODULE_ENDPOINTS
-#ENDPOINTS
+# region POSTURE_ESTIMATION_MODULE_ENDPOINTS
+# ENDPOINTS
 @app.route('/upload', methods=['POST'])
 def upload_image():
     try:
@@ -188,12 +152,13 @@ def upload_image():
         return jsonify({
             'message': 'Imagen procesada exitosamente.',
             'path': output_path,
-            'image_pos':image_position,
+            'image_pos': image_position,
             'position': position
         }), 200
 
     except Exception as e:
         return jsonify({'message': f'Error interno del servidor: {str(e)}'}), 500
+
 
 @app.route('/resize_image', methods=['POST'])
 def resizeImage():
@@ -215,7 +180,7 @@ def resizeImage():
 
         # Obtener dimensiones de la imagen antes de redimensionar
         with Image.open(filepath) as img:
-            #original_width, original_height = img.size  # Obtiene ancho y alto
+            # original_width, original_height = img.size  # Obtiene ancho y alto
             original_format = img.format
 
             if width > height:
@@ -235,7 +200,7 @@ def resizeImage():
                         print(f"Error al guardar la imagen: {e}")
 
             else:
-                #Si la Imagen es vertical
+                # Si la Imagen es vertical
                 with Image.open(filepath) as img:
                     resized_img = img.resize((width, height))
                     resized_img_w = width
@@ -246,8 +211,7 @@ def resizeImage():
                     # Guardar la imagen redimensionada
                     resized_img.save(output_path_file, format='JPEG', quality=90)
 
-
-        return jsonify({'Imagen_Redimensionada': output_path_file, 'alto':resized_img_h, 'ancho':resized_img_w}), 200
+        return jsonify({'Imagen_Redimensionada': output_path_file, 'alto': resized_img_h, 'ancho': resized_img_w}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -323,45 +287,45 @@ def saveImageData():
         width_file = data['data']['width']
         heigth_file = data['data']['height']
         file = data['data']['pathToSave']
-        center_x = width_file/2
-        center_y = heigth_file/2
+        center_x = width_file / 2
+        center_y = heigth_file / 2
         local_path = str(file)
-        final_path = local_path+'\\Imagen'
-        print('ruta final:',final_path)
+        final_path = local_path + '\\Imagen'
+        print('ruta final:', final_path)
 
         # si la ruta Imagen no existe la crea
         if not os.path.exists(final_path):
             os.makedirs(final_path)
 
-        #obtener archivos totales
+        # obtener archivos totales
         total = get_total_files(final_path)
 
-        #nuevo formato de nombre  000001
+        # nuevo formato de nombre  000001
         name, ext = os.path.splitext(file_name)
         name_to_save = f"{total}{ext}"
 
         # Guardar el JSON con los puntos
         json_file_name = "Points_Json.json"
         path_json = os.path.join(local_path, json_file_name)
-        print('path_json:',path_json)
+        print('path_json:', path_json)
 
         new_image_json = {
-                        "path":name_to_save,
-                        "content":{
-                            "points_position": points_position
-                        },
-                        "size":{
-                            "width": width_file,
-                            "heigth" : heigth_file
-                        },
-                        "center": {
-                            "x": center_x,
-                            "y": center_y
-                        }
-                    }
+            "path": name_to_save,
+            "content": {
+                "points_position": points_position
+            },
+            "size": {
+                "width": width_file,
+                "heigth": heigth_file
+            },
+            "center": {
+                "x": center_x,
+                "y": center_y
+            }
+        }
 
         if os.path.exists(path_json):
-            with open(path_json,"r") as json_file:
+            with open(path_json, "r") as json_file:
                 data = json.load(json_file)
                 if not isinstance(data, list):
                     data = [data]
@@ -370,10 +334,10 @@ def saveImageData():
         data.append(new_image_json)
 
         with open(path_json, "w") as json_file:
-            json.dump(data, json_file, indent= 4)
+            json.dump(data, json_file, indent=4)
 
-        image_file_path = os.path.join(final_path,name_to_save)
-        path_base_image = os.path.join(UPLOAD_FOLDER,f"points_{file_name}")
+        image_file_path = os.path.join(final_path, name_to_save)
+        path_base_image = os.path.join(UPLOAD_FOLDER, f"points_{file_name}")
 
         # Crear o copiar la imagen con el nombre indicado
         copyfile(path_base_image, image_file_path)  # Copia una imagen base con el nuevo nombre
@@ -386,33 +350,34 @@ def saveImageData():
     return jsonify({'success': False, 'message': 'Ocurrió un error al guardar la imagen o los datos.'}), 500
 
 
-
 def delete_temp_image(carpeta):
     files = glob.glob(os.path.join(carpeta, "*"))  # Lista todos los archivos
     for file in files:
         if os.path.isfile(file):
             os.remove(file)
 
+
 def get_total_files(final_path):
     file_count = sum(1 for file in os.listdir(final_path)
                      if os.path.isfile(os.path.join(final_path, file)))
-    file_count_str = str(file_count+1)
+    file_count_str = str(file_count + 1)
 
     if len(file_count_str) == 1:
-        final_path = '0000'+file_count_str
+        final_path = '0000' + file_count_str
 
     elif len(file_count_str) == 2:
-        final_path = '000'+file_count_str
+        final_path = '000' + file_count_str
     elif len(file_count_str) == 3:
-        final_path = '00'+file_count_str
+        final_path = '00' + file_count_str
     elif len(file_count_str) == 4:
-        final_path = '0'+file_count_str
+        final_path = '0' + file_count_str
     else:
         final_path = file_count_str
 
     return final_path
 
-#user controllers
+
+# user controllers
 @app.route('/validateLogin', methods=['POST'])
 def validate_login():
     try:
@@ -427,18 +392,21 @@ def validate_login():
             if result and result[3] == passw and result[5] == '1':
                 token = jwt.encode({
                     "user_id": result[0],
-                    "exp":datetime.utcnow() + timedelta(hours=8)
+                    "exp": datetime.utcnow() + timedelta(hours=8)
                 }, get_key(), algorithm="HS256")
 
                 update_session_login(result)
 
-                return jsonify({'authenticated': True, 'redirect_url': url_for('view_dashboard'), 'user':result[1], 'id':result[0], 'idRol':result[6], 'stateuser':result[5], 'token': token}), 200
+                return jsonify({'authenticated': True, 'redirect_url': url_for('view_dashboard'), 'user': result[1],
+                                'id': result[0], 'idRol': result[6], 'stateuser': result[5], 'token': token}), 200
             else:
-                return jsonify({'authenticated': False, 'message': 'Correo o contraseña incorrecta', 'stateuser':result[5]}), 401
+                return jsonify(
+                    {'authenticated': False, 'message': 'Correo o contraseña incorrecta', 'stateuser': result[5]}), 401
 
     except psycopg2.Error as e:
         print("Error al ejecutar la consulta:", e)
         return jsonify({'authenticated': False, 'message': 'Error interno del servidor'}), 500
+
 
 def update_session_login(result):
     with get_connection() as conn:
@@ -447,6 +415,7 @@ def update_session_login(result):
         with conn.cursor() as cursor:
             cursor.execute(query, (fecha_actual, result[0]))
             conn.commit()
+
 
 @app.route('/createAccount', methods=['POST'])
 def createAccount():
@@ -461,7 +430,7 @@ def createAccount():
         with get_connection() as conn:
             cursor = conn.cursor()
             query = create_account_query()
-            params = (name,lastName,identification,passw,email)
+            params = (name, lastName, identification, passw, email)
             cursor.execute(query, params)
             conn.commit()
 
@@ -471,13 +440,14 @@ def createAccount():
     except psycopg2.Error as e:
         return jsonify({'authenticated': False, 'message': 'Error interno del servidor'}), 500
 
+
 @app.route('/get_menu_options', methods=['GET'])
 def get_menu_option():
     try:
         with get_connection() as conn:
             cursor = conn.cursor()
             query = get_menu_options_query()
-            cursor.execute(query,)
+            cursor.execute(query)
             result = cursor.fetchone()
         if result is not None and len(result) > 0:
             return jsonify({'options': result[0]}), 200
@@ -513,10 +483,11 @@ def getUsers():
 
     except pyodbc.Error as e:
         return jsonify({'authenticated': False, 'message': 'Error interno del servidor'}), 500
-    
-@app.route('/user-one', methods = ['POST'])
+
+
+@app.route('/user-one', methods=['POST'])
 def user_one():
-    try: 
+    try:
         data = request.get_json()
         id = data.get('id')
 
@@ -533,7 +504,7 @@ def user_one():
                 return jsonify({'result': result}), 200
             else:
                 return jsonify({'result': None, 'message': 'Usuario no encontrado'}), 404
-    
+
     except Exception as e:
         return jsonify({'error': 'Error interno del servidor', 'details': str(e)}), 500
 
@@ -583,8 +554,8 @@ def delete_user():
             result = cursor.execute(query, params)
             conn.commit()
             return jsonify({
-                'result':True,
-                'message':'Usuario Eliminado'
+                'result': True,
+                'message': 'Usuario Eliminado'
             }), 200
 
     except psycopg2.errors.ForeignKeyViolation:
@@ -625,7 +596,7 @@ def edit_user():
     except Exception as e:
         conn.rollback()
         return jsonify({'result': False, 'message': 'Error interno del servidor', 'error': str(e)}), 500
-    
+
 
 @app.route('/parametrizador-ruta-principal', methods=['POST'])
 def save_main_route():
@@ -653,8 +624,8 @@ def HasPath():
         row = cursor.fetchone()
 
         if row:
-            return jsonify({'ruta': row[0], 'message':'Ruta guardada'}), 200
-    return jsonify({'message':'Ocurrio un error al tratar de guardar la ruta', 'total':0}), 400
+            return jsonify({'ruta': row[0], 'message': 'Ruta guardada'}), 200
+    return jsonify({'message': 'Ocurrio un error al tratar de guardar la ruta', 'total': 0}), 400
 
 
 @app.route('/getIdMainPath', methods=['POST'])
@@ -676,7 +647,8 @@ def get_id_main_path():
 def save_new_folder():
     id_main_path = int(request.form.get('id_main_folder'))
     main_path = request.form.get('nameFolder')
-    date = datetime.now().strftime('%d-%m-%Y')
+    #date = datetime.now().strftime('%d-%m-%Y')
+    date = datetime.now().strftime('%Y-%m-%d')
 
     # Se crea la carpeta automaticamente
     if not os.path.exists(main_path):
@@ -692,6 +664,7 @@ def save_new_folder():
             return jsonify({'created': True, 'message': 'Ruta creada con exito'}), 200
     else:
         return jsonify({'created': False, 'message': 'Ruta ya existe'}), 400
+
 
 @app.route('/all_paths', methods=['POST'])
 def getPaths():
@@ -709,12 +682,13 @@ def getPaths():
                 rutas.append({
                     "id": row[0],
                     "nombre": row[1],
-                    "fechaCreacion":row[2]
+                    "fechaCreacion": row[2]
                 })
             return jsonify(rutas), 200
 
     except pyodbc.Error as e:
         return jsonify({'authenticated': False, 'message': 'Error interno del servidor'}), 500
+
 
 @app.route('/delete_folder', methods=['POST'])
 def delete_folder():
@@ -729,8 +703,8 @@ def delete_folder():
             os.rmdir(path_to_delete)
 
             return jsonify({
-                'result':True,
-                'message':'Ruta Eliminada'
+                'result': True,
+                'message': 'Ruta Eliminada'
             })
 
     except pyodbc.Error as e:
@@ -783,6 +757,7 @@ def get_files():
     except json.JSONDecodeError:
         return jsonify({"error": "Error al leer el archivo JSON."}), 400
 
+
 @app.route('/getImage', methods=['POST'])
 def get_image():
     pathName = request.form.get('path')
@@ -801,7 +776,7 @@ def get_image():
     return send_file(all_path, mimetype=mimetype)
 
 
-#CONTROLLER FOR VIDEOS VIEW
+# CONTROLLER FOR VIDEOS VIEW
 
 @app.route('/generate_images_from_videos', methods=['POST'])
 def generate_images_from_videos():
@@ -835,7 +810,7 @@ def generate_images_from_videos():
                 frames.append((f"frame_{idx}.jpg", encoded_frame))
         os.remove(video_path)
 
-        return jsonify({frame_name: frame_data for frame_name, frame_data in frames}),200
+        return jsonify({frame_name: frame_data for frame_name, frame_data in frames}), 200
 
     except Exception as e:
         return jsonify({'error': f'Error procesando el video: {str(e)}'}), 500
@@ -873,7 +848,7 @@ def upload_image_from_video():
                 else:
                     final_width = final_height = min(width, height) if width and height else 300  # Valor por defecto
 
-                #resized_img = image.resize((300, 445))
+                # resized_img = image.resize((300, 445))
                 resized_img = image.resize((final_width, final_height))
                 resized_image_name = 'resized_' + filename
                 output_path_file = os.path.join(UPLOAD_FOLDER, resized_image_name)
@@ -907,8 +882,8 @@ def upload_image_from_video():
             'image_pos': image_position,
             'position': position,
             'filename': 'points_' + filename,
-            'height':final_height,
-            'width':final_width
+            'height': final_height,
+            'width': final_width
         }), 200
 
     except Exception as e:
@@ -924,20 +899,19 @@ def save_image_from_video():
         width_file = data['data']['width']
         heigth_file = data['data']['height']
         file = data['data']['pathToSave']
-        center_x = width_file/2
-        center_y = heigth_file/2
+        center_x = width_file / 2
+        center_y = heigth_file / 2
         local_path = str(file)
-        final_path = local_path+'\\Imagen'
-
+        final_path = local_path + '\\Imagen'
 
         # si la ruta Imagen no existe la crea
         if not os.path.exists(final_path):
             os.makedirs(final_path)
 
-        #obtener archivos totales
+        # obtener archivos totales
         total = get_total_files(final_path)
 
-        #nuevo formato de nombre  000001
+        # nuevo formato de nombre  000001
         name, ext = os.path.splitext(file_name)
         name_to_save = f"{total}{ext}"
 
@@ -946,22 +920,22 @@ def save_image_from_video():
         path_json = os.path.join(local_path, json_file_name)
 
         new_image_json = {
-                        "path":name_to_save,
-                        "content":{
-                            "points_position": points_position
-                        },
-                        "size":{
-                            "width": width_file,
-                            "heigth" : heigth_file
-                        },
-                        "center": {
-                            "x": center_x,
-                            "y": center_y
-                        }
-                    }
+            "path": name_to_save,
+            "content": {
+                "points_position": points_position
+            },
+            "size": {
+                "width": width_file,
+                "heigth": heigth_file
+            },
+            "center": {
+                "x": center_x,
+                "y": center_y
+            }
+        }
 
         if os.path.exists(path_json):
-            with open(path_json,"r") as json_file:
+            with open(path_json, "r") as json_file:
                 data = json.load(json_file)
                 if not isinstance(data, list):
                     data = [data]
@@ -970,10 +944,10 @@ def save_image_from_video():
         data.append(new_image_json)
 
         with open(path_json, "w") as json_file:
-            json.dump(data, json_file, indent= 4)
+            json.dump(data, json_file, indent=4)
 
-        image_file_path = os.path.join(final_path,name_to_save)
-        path_base_image = os.path.join(UPLOAD_FOLDER,file_name)
+        image_file_path = os.path.join(final_path, name_to_save)
+        path_base_image = os.path.join(UPLOAD_FOLDER, file_name)
 
         # Crear o copiar la imagen con el nombre indicado
         copyfile(path_base_image, image_file_path)  # Copia una imagen base con el nuevo nombre
@@ -994,6 +968,7 @@ def validate_frame_exists(id_user):
             count = cursor.fetchone()[0]  # Obtener el resultado de la consulta
             print(count)  # Imprimir el resultado
             return count
+
 
 @app.route('/saveNewFrame', methods=['POST'])
 def save_frames_for_video():
@@ -1030,6 +1005,7 @@ def save_frames_for_video():
         except pyodbc.Error as e:
             return jsonify({'result': False, 'message': 'Error interno del servidor'}), 500
 
+
 @app.route('/get_frames', methods=['POST'])
 def get_frames():
     id_user = request.form.get('id')
@@ -1050,7 +1026,7 @@ def get_frames():
         return jsonify({'result': False, 'message': 'Error interno del servidor'}), 500
 
 
-@app.route('/getTutorialState',methods=['POST'])
+@app.route('/getTutorialState', methods=['POST'])
 @token_required
 def get_tutorial_state():
     id_user = int(request.form.get('id'))
@@ -1070,6 +1046,7 @@ def get_tutorial_state():
 
     except pyodbc.Error as e:
         return jsonify({'result': False, 'message': 'Error interno del servidor'}), 500
+
 
 @app.route('/saveFirstTutorialInfo', methods=['POST'])
 def save_first_tutorial_info():
@@ -1098,27 +1075,28 @@ def save_first_tutorial_info():
         print(f"Error al ejecutar las consultas: {e}")
         return jsonify({'result': False, 'message': 'Error interno del servidor'}), 500
 
-#endregion
 
-#region SUSPICIOUS_DETECTION_MODULE_ENDPOINTS
-@app.route('/video_feed', methods=['POST'])
-def video_feed():
-    if 'frame' not in request.files:
-        return 'No se recibió imagen', 400
+# endregion
 
-    file = request.files['frame']
-    img_bytes = file.read()
-
-    processed = camera_controller.process_frame_from_bytes(img_bytes)
-
-    if processed is None:
-        return 'Error al procesar imagen', 500
-
-    _, buffer = cv.imencode('.jpg', processed)
-    return Response(buffer.tobytes(), mimetype='image/jpeg')
-    # return Response(camera_controller.generate_frames(),
-    #                 mimetype='multipart/x-mixed-replace; boundary=frame')
-#endregion
+# region SUSPICIOUS_DETECTION_MODULE_ENDPOINTS
+# @app.route('/video_feed', methods=['POST'])
+# def video_feed():
+#     if 'frame' not in request.files:
+#         return 'No se recibió imagen', 400
+#
+#     file = request.files['frame']
+#     img_bytes = file.read()
+#
+#     processed = camera_controller.process_frame_from_bytes(img_bytes)
+#
+#     if processed is None:
+#         return 'Error al procesar imagen', 500
+#
+#     _, buffer = cv.imencode('.jpg', processed)
+#     return Response(buffer.tobytes(), mimetype='image/jpeg')
+# return Response(camera_controller.generate_frames(),
+#                 mimetype='multipart/x-mixed-replace; boundary=frame')
+# endregion
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

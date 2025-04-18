@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Boi Pose | Detección por video</title>
+    <link rel="stylesheet" href="../static/styles/video-detection.css">
+    <link rel="stylesheet" href="../static/styles/header.css">
+    <link rel="stylesheet" href="../static/styles/sidebar.css">
+</head>
+<body>
+{% extends "navegacion.html" %}
+
+    {% block content %}
+    <h1>Detección por video</h1>
+    {% endblock %}
+    {% block scripts %}
+    <script src="{{ url_for('static', filename='scripts/video-detector.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
+    {% endblock %}
+</body>
+</html>
