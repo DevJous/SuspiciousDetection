@@ -1,0 +1,436 @@
+import cv2
+import numpy as np
+import mediapipe as mp
+
+# Configuración de MediaPipe
+mp_pose = mp.solutions.pose
+mp_holistic = mp.solutions.holistic
+mp_drawing = mp.solutions.drawing_utils
+mp_face_mesh = mp.solutions.face_mesh
+
+# Constantes para la detección
+PROXIMIDAD_UMBRAL = 0.5  # Umbral de distancia para detectar proximidad entre personas
+TIEMPO_MINIMO_SOSPECHA = 3  # Segundos mínimos para confirmar comportamiento sospechoso
+MANOS_OCULTAS_UMBRAL = 0.3  # Umbral para detectar manos cerca de bolsillos
+CAMBIO_DIRECCION_UMBRAL = 30  # Umbral en grados para considerar un cambio brusco de dirección
+
+
+class DetectorComportamientoSospechoso:
+    def __init__(self):
+        self.holistic = mp_holistic.Holistic(
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5)
+        self.face_mesh = mp_face_mesh.FaceMesh(
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5)
+
+        # Variables para tracking
+        self.historial_posiciones = {}  # Historial de posiciones por persona
+        self.contador_comportamiento = {}  # Contador de frames con comportamiento sospechoso
+        self.historial_direcciones = {}  # Historial de direcciones
+        self.tiempo_ultima_deteccion = {}  # Tiempo de última detección
+        self.alertas_activas = {}  # Registro de alertas activas
+
+    def calcular_distancia(self, punto1, punto2):
+        """Calcula la distancia euclidiana entre dos puntos en 2D."""
+        return np.sqrt((punto1[0] - punto2[0]) ** 2 + (punto1[1] - punto2[1]) ** 2)
+
+    def calcular_angulo(self, punto1, punto2):
+        """Calcula el ángulo de la línea que une dos puntos."""
+        return np.degrees(np.arctan2(punto2[1] - punto1[1], punto2[0] - punto1[0]))
+
+    def detectar_acercamiento_disimulado(self, personas, frame_width, frame_height, frame_time):
+        """Detectar acercamiento disimulado entre personas."""
+        alertas = []
+
+        # Si hay menos de 2 personas, no hay acercamiento posible
+        if len(personas) < 2:
+            return alertas
+
+        # Comprobar distancias entre todas las personas
+        for i, persona1 in enumerate(personas):
+            id_persona1 = persona1['id']
+            pos_persona1 = persona1['posicion']
+
+            for j, persona2 in enumerate(personas[i + 1:], i + 1):
+                id_persona2 = persona2['id']
+                pos_persona2 = persona2['posicion']
+
+                # Calcular distancia normalizada (relativa al tamaño del frame)
+                distancia_normalizada = self.calcular_distancia(pos_persona1, pos_persona2) / (
+                            frame_width + frame_height) * 2
+
+                # Crear identificador único para este par de personas
+                pair_id = f"acercamiento_{id_persona1}_{id_persona2}"
+
+                if distancia_normalizada < PROXIMIDAD_UMBRAL:
+                    # Inicializar contador si es la primera detección
+                    if pair_id not in self.contador_comportamiento:
+                        self.contador_comportamiento[pair_id] = 1
+                        self.tiempo_ultima_deteccion[pair_id] = frame_time
+                    else:
+                        # Incrementar contador solo si es un frame consecutivo
+                        if frame_time - self.tiempo_ultima_deteccion[pair_id] < 0.5:  # 0.5 segundos de tolerancia
+                            self.contador_comportamiento[pair_id] += 1
+                        else:
+                            # Reiniciar contador si ha pasado demasiado tiempo
+                            self.contador_comportamiento[pair_id] = 1
+
+                        self.tiempo_ultima_deteccion[pair_id] = frame_time
+
+                    # Verificar si se supera el umbral de tiempo
+                    tiempo_acumulado = self.contador_comportamiento[pair_id] / 30  # Asumiendo 30 FPS
+
+                    if tiempo_acumulado >= TIEMPO_MINIMO_SOSPECHA and pair_id not in self.alertas_activas:
+                        # Crear alerta
+                        punto_medio = ((pos_persona1[0] + pos_persona2[0]) // 2,
+                                       (pos_persona1[1] + pos_persona2[1]) // 2)
+                        alertas.append({
+                            'tipo': 'acercamiento_disimulado',
+                            'posicion': punto_medio,
+                            'tiempo': frame_time,
+                            'id': pair_id
+                        })
+                        self.alertas_activas[pair_id] = frame_time
+                else:
+                    # Resetear contador si ya no están cerca
+                    if pair_id in self.contador_comportamiento:
+                        self.contador_comportamiento[pair_id] = 0
+
+                    # Eliminar la alerta después de 5 segundos
+                    if pair_id in self.alertas_activas and frame_time - self.alertas_activas[pair_id] > 5:
+                        del self.alertas_activas[pair_id]
+
+        return alertas
+
+    def detectar_manipulacion_bolsillos(self, landmarks, frame_width, frame_height, frame_time, persona_id):
+        """Detectar ocultación de manos o manipulación de bolsillos."""
+        # Puntos relevantes para bolsillos (cadera y muñecas)
+        if not landmarks.pose_landmarks:
+            return []
+
+        alertas = []
+        pose_landmarks = landmarks.pose_landmarks.landmark
+
+        # Coordenadas de caderas
+        left_hip = (pose_landmarks[mp_pose.PoseLandmark.LEFT_HIP].x * frame_width,
+                    pose_landmarks[mp_pose.PoseLandmark.LEFT_HIP].y * frame_height)
+        right_hip = (pose_landmarks[mp_pose.PoseLandmark.RIGHT_HIP].x * frame_width,
+                     pose_landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y * frame_height)
+
+        # Coordenadas de muñecas
+        left_wrist = (pose_landmarks[mp_pose.PoseLandmark.LEFT_WRIST].x * frame_width,
+                      pose_landmarks[mp_pose.PoseLandmark.LEFT_WRIST].y * frame_height)
+        right_wrist = (pose_landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].x * frame_width,
+                       pose_landmarks[mp_pose.PoseLandmark.RIGHT_WRIST].y * frame_height)
+
+        # Detector para mano izquierda
+        distancia_izq = self.calcular_distancia(left_wrist, left_hip) / frame_height
+        distancia_der = self.calcular_distancia(right_wrist, right_hip) / frame_height
+
+        # IDs únicos para cada mano
+        mano_izq_id = f"mano_izq_{persona_id}"
+        mano_der_id = f"mano_der_{persona_id}"
+
+        # Verificar mano izquierda cerca del bolsillo
+        if distancia_izq < MANOS_OCULTAS_UMBRAL:
+            if mano_izq_id not in self.contador_comportamiento:
+                self.contador_comportamiento[mano_izq_id] = 1
+                self.tiempo_ultima_deteccion[mano_izq_id] = frame_time
+            else:
+                if frame_time - self.tiempo_ultima_deteccion[mano_izq_id] < 0.5:
+                    self.contador_comportamiento[mano_izq_id] += 1
+                else:
+                    self.contador_comportamiento[mano_izq_id] = 1
+                self.tiempo_ultima_deteccion[mano_izq_id] = frame_time
+
+            tiempo_acumulado = self.contador_comportamiento[mano_izq_id] / 30
+
+            if tiempo_acumulado >= TIEMPO_MINIMO_SOSPECHA and mano_izq_id not in self.alertas_activas:
+                alertas.append({
+                    'tipo': 'manipulacion_bolsillo',
+                    'posicion': left_hip,
+                    'tiempo': frame_time,
+                    'id': mano_izq_id
+                })
+                self.alertas_activas[mano_izq_id] = frame_time
+        else:
+            if mano_izq_id in self.contador_comportamiento:
+                self.contador_comportamiento[mano_izq_id] = 0
+
+            if mano_izq_id in self.alertas_activas and frame_time - self.alertas_activas[mano_izq_id] > 5:
+                del self.alertas_activas[mano_izq_id]
+
+        # Verificar mano derecha cerca del bolsillo
+        if distancia_der < MANOS_OCULTAS_UMBRAL:
+            if mano_der_id not in self.contador_comportamiento:
+                self.contador_comportamiento[mano_der_id] = 1
+                self.tiempo_ultima_deteccion[mano_der_id] = frame_time
+            else:
+                if frame_time - self.tiempo_ultima_deteccion[mano_der_id] < 0.5:
+                    self.contador_comportamiento[mano_der_id] += 1
+                else:
+                    self.contador_comportamiento[mano_der_id] = 1
+                self.tiempo_ultima_deteccion[mano_der_id] = frame_time
+
+            tiempo_acumulado = self.contador_comportamiento[mano_der_id] / 30
+
+            if tiempo_acumulado >= TIEMPO_MINIMO_SOSPECHA and mano_der_id not in self.alertas_activas:
+                alertas.append({
+                    'tipo': 'manipulacion_bolsillo',
+                    'posicion': right_hip,
+                    'tiempo': frame_time,
+                    'id': mano_der_id
+                })
+                self.alertas_activas[mano_der_id] = frame_time
+        else:
+            if mano_der_id in self.contador_comportamiento:
+                self.contador_comportamiento[mano_der_id] = 0
+
+            if mano_der_id in self.alertas_activas and frame_time - self.alertas_activas[mano_der_id] > 5:
+                del self.alertas_activas[mano_der_id]
+
+        return alertas
+
+    def detectar_miradas_y_cambios_direccion(self, landmarks, frame_width, frame_height, frame_time, persona_id):
+        """Detectar miradas frecuentes y cambios bruscos de dirección."""
+        alertas = []
+
+        # ID para este comportamiento específico
+        mirada_id = f"mirada_{persona_id}"
+
+        if not landmarks.pose_landmarks:
+            return alertas
+
+        pose_landmarks = landmarks.pose_landmarks.landmark
+
+        # Utilizamos los puntos de referencia de nariz y hombros para determinar orientación
+        nose = (pose_landmarks[mp_pose.PoseLandmark.NOSE].x * frame_width,
+                pose_landmarks[mp_pose.PoseLandmark.NOSE].y * frame_height)
+
+        left_shoulder = (pose_landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].x * frame_width,
+                         pose_landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER].y * frame_height)
+
+        right_shoulder = (pose_landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].x * frame_width,
+                          pose_landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER].y * frame_height)
+
+        # Punto medio entre los hombros
+        mid_shoulder = ((left_shoulder[0] + right_shoulder[0]) / 2,
+                        (left_shoulder[1] + right_shoulder[1]) / 2)
+
+        # Vector desde hombros a nariz (orientación de la cabeza)
+        vector_orientacion = (nose[0] - mid_shoulder[0], nose[1] - mid_shoulder[1])
+
+        # Calculamos el ángulo de orientación
+        angulo_actual = np.degrees(np.arctan2(vector_orientacion[1], vector_orientacion[0]))
+
+        # Si es primera detección, guardamos posición inicial
+        if persona_id not in self.historial_direcciones:
+            self.historial_direcciones[persona_id] = {
+                'angulos': [angulo_actual],
+                'timestamps': [frame_time],
+                'cambios_bruscos': 0,
+                'ultimo_cambio': 0
+            }
+        else:
+            historial = self.historial_direcciones[persona_id]
+
+            # Solo considerar si ha pasado suficiente tiempo entre detecciones
+            if frame_time - historial['timestamps'][-1] < 0.5:  # 0.5 segundos entre mediciones
+                # Calcular diferencia de ángulo (cambio de dirección)
+                angulo_anterior = historial['angulos'][-1]
+                diferencia_angulo = abs((angulo_actual - angulo_anterior + 180) % 360 - 180)
+
+                # Detectar cambio brusco de dirección
+                if diferencia_angulo > CAMBIO_DIRECCION_UMBRAL:
+                    # Incrementar contador de cambios bruscos
+                    historial['cambios_bruscos'] += 1
+                    historial['ultimo_cambio'] = frame_time
+
+                    # Verificar si hay muchas miradas en corto tiempo (últimos 10 segundos)
+                    cambios_recientes = 0
+                    for i, ts in enumerate(historial['timestamps']):
+                        if frame_time - ts <= 10 and i > 0:  # Últimos 10 segundos
+                            ang_prev = historial['angulos'][i - 1]
+                            ang_curr = historial['angulos'][i]
+                            dif = abs((ang_curr - ang_prev + 180) % 360 - 180)
+                            if dif > CAMBIO_DIRECCION_UMBRAL:
+                                cambios_recientes += 1
+
+                    # Si hay 3 o más cambios bruscos en 10 segundos
+                    if cambios_recientes >= 3 and mirada_id not in self.alertas_activas:
+                        alertas.append({
+                            'tipo': 'miradas_frecuentes',
+                            'posicion': nose,
+                            'tiempo': frame_time,
+                            'id': mirada_id
+                        })
+                        self.alertas_activas[mirada_id] = frame_time
+
+            # Actualizar historial
+            historial['angulos'].append(angulo_actual)
+            historial['timestamps'].append(frame_time)
+
+            # Mantener historial limitado (últimos 30 segundos)
+            while historial['timestamps'] and frame_time - historial['timestamps'][0] > 30:
+                historial['angulos'].pop(0)
+                historial['timestamps'].pop(0)
+
+            # Eliminar alerta después de 5 segundos
+            if mirada_id in self.alertas_activas and frame_time - self.alertas_activas[mirada_id] > 5:
+                del self.alertas_activas[mirada_id]
+
+        return alertas
+
+    def procesar_frame(self, frame, frame_index, fps):
+        """Procesa un frame y detecta comportamientos sospechosos."""
+        frame_time = frame_index / fps
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        altura, ancho, _ = frame.shape
+
+        # Obtener resultados de MediaPipe
+        resultados = self.holistic.process(frame_rgb)
+
+        # Personas detectadas en este frame
+        personas = []
+        alertas_frame = []
+
+        # Si se detecta una persona
+        if resultados.pose_landmarks:
+            # ID para esta persona (simplificado para un único sujeto)
+            persona_id = 1
+
+            # Posición promedio (centro del cuerpo)
+            landmarks = resultados.pose_landmarks.landmark
+            puntos_cuerpo = [
+                landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER],
+                landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER],
+                landmarks[mp_pose.PoseLandmark.LEFT_HIP],
+                landmarks[mp_pose.PoseLandmark.RIGHT_HIP]
+            ]
+
+            x_medio = sum(punto.x for punto in puntos_cuerpo) / len(puntos_cuerpo) * ancho
+            y_medio = sum(punto.y for punto in puntos_cuerpo) / len(puntos_cuerpo) * altura
+
+            personas.append({
+                'id': persona_id,
+                'posicion': (x_medio, y_medio)
+            })
+
+            # 1. Detectar manipulación de bolsillos
+            alertas_bolsillos = self.detectar_manipulacion_bolsillos(
+                resultados, ancho, altura, frame_time, persona_id)
+            alertas_frame.extend(alertas_bolsillos)
+
+            # 2. Detectar miradas y cambios de dirección
+            alertas_miradas = self.detectar_miradas_y_cambios_direccion(
+                resultados, ancho, altura, frame_time, persona_id)
+            alertas_frame.extend(alertas_miradas)
+
+        # 3. Detectar acercamiento disimulado entre personas
+        alertas_acercamiento = self.detectar_acercamiento_disimulado(
+            personas, ancho, altura, frame_time)
+        alertas_frame.extend(alertas_acercamiento)
+
+        # Dibujar resultados en el frame
+        frame_anotado = frame.copy()
+
+        # Dibujar esqueleto si está disponible
+        if resultados.pose_landmarks:
+            mp_drawing.draw_landmarks(
+                frame_anotado,
+                resultados.pose_landmarks,
+                mp_holistic.POSE_CONNECTIONS)
+
+        # Dibujar alertas
+        for alerta in alertas_frame:
+            posicion = (int(alerta['posicion'][0]), int(alerta['posicion'][1]))
+
+            # Dibujar un círculo en la posición de la alerta
+            cv2.circle(frame_anotado, posicion, 15, (0, 0, 255), -1)
+
+            # Dibujar rectángulo de alerta alrededor de la persona
+            if alerta['tipo'] == 'acercamiento_disimulado':
+                cv2.rectangle(frame_anotado,
+                              (posicion[0] - 150, posicion[1] - 150),
+                              (posicion[0] + 150, posicion[1] + 150),
+                              (0, 0, 255), 3)
+                cv2.putText(frame_anotado, "ALERTA: Acercamiento sospechoso",
+                            (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+            elif alerta['tipo'] == 'manipulacion_bolsillo':
+                cv2.rectangle(frame_anotado,
+                              (posicion[0] - 100, posicion[1] - 100),
+                              (posicion[0] + 100, posicion[1] + 100),
+                              (0, 165, 255), 3)
+                cv2.putText(frame_anotado, "ALERTA: Manipulación de bolsillo",
+                            (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 165, 255), 2)
+
+            elif alerta['tipo'] == 'miradas_frecuentes':
+                cv2.rectangle(frame_anotado,
+                              (posicion[0] - 75, posicion[1] - 75),
+                              (posicion[0] + 75, posicion[1] + 75),
+                              (255, 0, 0), 3)
+                cv2.putText(frame_anotado, "ALERTA: Miradas frecuentes/cambios de dirección",
+                            (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
+        # Añadir timestamp
+        tiempo_str = f"Tiempo: {frame_time:.2f}s"
+        cv2.putText(frame_anotado, tiempo_str, (ancho - 200, altura - 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+        return frame_anotado, alertas_frame
+
+    def procesar_video(self, ruta_entrada, ruta_salida):
+        """Procesa un video completo y genera un reporte de comportamientos sospechosos."""
+        cap = cv2.VideoCapture(ruta_entrada)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # Configurar escritor de video
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(ruta_salida, fourcc, fps, (width, height))
+
+        # Reporte de alertas
+        reporte_alertas = []
+        frame_index = 0
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            # Procesar frame
+            frame_anotado, alertas = self.procesar_frame(frame, frame_index, fps)
+
+            # Guardar alertas en el reporte
+            if alertas:
+                for alerta in alertas:
+                    tiempo = frame_index / fps
+                    reporte_alertas.append({
+                        'tiempo': tiempo,
+                        'tipo': alerta['tipo'],
+                        'frame': frame_index
+                    })
+
+            # Escribir frame procesado
+            out.write(frame_anotado)
+
+            frame_index += 1
+
+            # Mostrar progreso cada 100 frames
+            if frame_index % 100 == 0:
+                print(f"Procesados {frame_index}/{total_frames} frames ({frame_index / total_frames * 100:.1f}%)")
+
+        # Liberar recursos
+        cap.release()
+        out.release()
+
+        return reporte_alertas
+
+    def liberar_recursos(self):
+        """Libera los recursos utilizados por MediaPipe."""
+        self.holistic.close()
+        self.face_mesh.close()

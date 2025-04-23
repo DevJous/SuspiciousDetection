@@ -46,12 +46,12 @@
             font-size: 0.8rem;
             color: white;
         }
-        .excessive-gaze {
+        .approach {
             background-color: #dc3545;
         }
         .hidden-hands {
             background-color: #fd7e14;
         }
-        .erratic-movements {
+        .suspicious-movements {
             background-color: #6f42c1;
         }

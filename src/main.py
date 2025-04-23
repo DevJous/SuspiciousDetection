@@ -1,6 +1,7 @@
 import datetime
 import io
-import traceback
+import uuid
+import winreg
 
 from flask import Flask, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response
 import pyodbc
@@ -14,6 +15,8 @@ from shutil import copyfile
 from PIL import Image
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import psycopg2
+from werkzeug.utils import secure_filename
+
 from Resources.QueriesProcedures import (validate_login_query,
                                          create_account_query,
                                          update_session,
@@ -43,6 +46,8 @@ from Resources.Middleware import get_key  # , deserialize_token
 from model.PoseModule import poseDetector
 from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
+from model.BehaviorDetector import BehaviorDetector
+from model.DetectorComportamiento import DetectorComportamiento
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -50,11 +55,13 @@ conn = get_connection()
 
 # Crear una carpeta para guardar las imágenes subidas
 UPLOAD_FOLDER = 'static/uploads/'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+#app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = 'static/videos/uploads'
+app.config['RESULT_FOLDER'] = 'static/videos/results'
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 # Crear el detector de poses
 detector = poseDetector()
-
 
 # region RENDER_VIEWS_ROUTES
 # ROUTES
@@ -111,6 +118,14 @@ def live_detection():
 @app.route('/video-detection')
 def video_detection():
     return render_template('video-detection.html')
+
+@app.route('/new-detection')
+def new_detection():
+    return render_template('new-detection.html')
+
+@app.route('/results')
+def results():
+    return render_template('results.html')
 
 # endregion
 
@@ -1083,23 +1098,95 @@ def save_first_tutorial_info():
 # endregion
 
 # region SUSPICIOUS_DETECTION_MODULE_ENDPOINTS
-# @app.route('/video_feed', methods=['POST'])
-# def video_feed():
-#     if 'frame' not in request.files:
-#         return 'No se recibió imagen', 400
-#
-#     file = request.files['frame']
-#     img_bytes = file.read()
-#
-#     processed = camera_controller.process_frame_from_bytes(img_bytes)
-#
-#     if processed is None:
-#         return 'Error al procesar imagen', 500
-#
-#     _, buffer = cv.imencode('.jpg', processed)
-#     return Response(buffer.tobytes(), mimetype='image/jpeg')
-# return Response(camera_controller.generate_frames(),
-#                 mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def get_desktop_path():
+    try:
+        reg_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+        desktop_path, _ = winreg.QueryValueEx(reg_key, "Desktop")
+        winreg.CloseKey(reg_key)
+        return os.path.join(desktop_path, "SospiciousDetection")
+    except:
+        return os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection")
+
+def get_desktop_path_linux():
+    return os.path.abspath(os.path.join("~", "..", "home", "SospiciousDetection"))
+
+@app.route('/new-upload', methods=['POST'])
+def upload_file():
+    if 'video' not in request.files:
+        return jsonify({'error': 'No se encontró el archivo de video'}), 400
+
+    file = request.files['video']
+    if file.filename == '':
+        return jsonify({'error': 'No se seleccionó ningún archivo'}), 400
+
+    if file:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(get_desktop_path_linux(), filename)
+        file.save(filepath)
+
+        # Procesar el video
+        output_path = os.path.join(get_desktop_path_linux(), 'processed_' + filename)
+        detector = BehaviorDetector()
+        results = detector.process_video(filepath, output_path)
+
+        # Devolver resultados
+        return jsonify({
+            'processed_video': 'processed_' + filename,
+            'detections': results
+        })
+
+@app.route('/processed/<filename>')
+def processed_file(filename):
+    # Procesar el video
+    print(os.path.join(get_desktop_path_linux(), filename))
+    return send_file(os.path.join(get_desktop_path_linux(), filename), mimetype='video/mp4', as_attachment=False)
+
+
+#--
+
+@app.route('/new-upload2', methods=['POST'])
+def new_upload2():
+    if 'video' not in request.files:
+        return 'No se seleccionó ningún archivo', 400
+
+    file = request.files['video']
+    if file.filename == '':
+        return 'No se seleccionó ningún archivo', 400
+
+    # Guardar video subido
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    nombre_base = os.path.splitext(file.filename)[0]
+    extension = os.path.splitext(file.filename)[1]
+    nombre_archivo = f"{nombre_base}_{timestamp}{extension}"
+    ruta_entrada = os.path.join(get_desktop_path_linux(), nombre_archivo)
+    file.save(ruta_entrada)
+
+    # Definir ruta de salida
+    ruta_salida = os.path.join(get_desktop_path_linux(), f"procesado_{nombre_archivo}")
+
+    # Procesar video
+    detector = DetectorComportamiento()
+    reporte = detector.procesar_video(ruta_entrada, ruta_salida)
+    detector.liberar_recursos()
+
+    # Devolver resultado
+    return render_template('results.html',
+                           video_original=nombre_archivo,
+                           video_procesado=f"procesado_{nombre_archivo}",
+                           reporte=reporte)
+
+
+@app.route('/video/<filename>')
+def video(filename):
+    """Devuelve un video almacenado."""
+    return send_file(os.path.join(get_desktop_path_linux(), filename))
+
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    """Devuelve un archivo subido."""
+    return send_file(os.path.join(get_desktop_path_linux(), filename))
 # endregion
 
 if __name__ == '__main__':

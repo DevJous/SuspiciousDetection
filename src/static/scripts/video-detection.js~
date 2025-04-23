@@ -95,16 +95,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         switch(behavior) {
                             case 'excessive_gaze':
-                                label = 'Mirada excesiva';
-                                className = 'excessive-gaze';
+                                label = 'Acercamiento';
+                                className = 'approach';
                                 break;
                             case 'hidden_hands':
                                 label = 'Manos ocultas';
                                 className = 'hidden-hands';
                                 break;
-                            case 'erratic_movements':
-                                label = 'Movimientos erráticos';
-                                className = 'erratic-movements';
+                            case 'suspicious_movements':
+                                label = 'Movimientos sospechosos';
+                                className = 'suspicious-movements';
                                 break;
                         }
 

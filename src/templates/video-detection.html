@@ -13,10 +13,44 @@
     {% block content %}
     <div class="container_main">
         <h1>Detección de Comportamientos Sospechosos</h1>
+         <div class="card p-4">
+            <h4>Cargar Video para Análisis</h4>
+            <p class="text-muted">El sistema analizará el video en busca de comportamientos sospechosos.</p>
+
+            <form id="upload-form">
+                <div class="mb-3">
+                    <label for="video-file" class="form-label">Seleccionar archivo de video:</label>
+                    <input class="form-control" type="file" id="video-file" accept="video/*" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="upload-btn">Procesar Video</button>
+            </form>
+
+            <div id="progress-container">
+                <p>Procesando video... Esto puede tomar algunos minutos dependiendo del tamaño del video.</p>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="video-container" class="card p-4 mt-4">
+            <h4>Video Procesado</h4>
+            <div class="ratio ratio-16x9">
+                <video id="processed-video" controls></video>
+            </div>
+        </div>
+
+        <div id="results-container" class="card p-4 mt-4">
+            <h4>Detecciones</h4>
+            <p>Haga clic en un timestamp para saltar a ese momento en el video:</p>
+            <div id="timestamps-list" class="list-group">
+                <!-- Los resultados se cargarán aquí dinámicamente -->
+            </div>
+        </div>
     </div>
     {% endblock %}
     {% block scripts %}
-    <script src="{{ url_for('static', filename='scripts/video-detector.js') }}"></script>
+    <script src="{{ url_for('static', filename='scripts/video-detection.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
     {% endblock %}
 </body>
