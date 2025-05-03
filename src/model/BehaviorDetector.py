@@ -1,19 +1,24 @@
-# behavior_detector.py - Clase mejorada para detectar comportamientos sospechosos
 import cv2
+import os
+import shutil
 import mediapipe as mp
 import numpy as np
 import time
 import math
 from collections import defaultdict, deque
+from Resources.Helper import get_temp_route
 
 
 class BehaviorDetector:
-    def __init__(self):
+    def __init__(self, frame_skip=3):
         # Inicializar MediaPipe Pose y Hands
         self.mp_pose = mp.solutions.pose
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_face_mesh = mp.solutions.face_mesh
+
+        # Nuevo parámetro para configurar cuántos frames saltar
+        self.frame_skip = frame_skip
 
         self.pose = self.mp_pose.Pose(
             static_image_mode=False,
@@ -334,6 +339,7 @@ class BehaviorDetector:
         # Combinar detecciones
         return erratic_movement or tremor_detected
 
+
     def process_video(self, input_path, output_path):
         cap = cv2.VideoCapture(input_path)
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -346,7 +352,19 @@ class BehaviorDetector:
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
         frame_idx = 0
+        frame_counter = 0  # Contador para controlar el salto de frames
         detections = []
+
+        # Ajustar umbrales para compensar frames saltados
+        self.hidden_hands_frame_threshold = max(1, self.hidden_hands_frame_threshold // self.frame_skip)
+        self.tremor_frames_threshold = max(1, self.tremor_frames_threshold // self.frame_skip)
+
+        filename, extension = os.path.splitext(os.path.basename(input_path))
+        if not os.path.exists(get_temp_route(filename)):
+            os.makedirs(get_temp_route(filename))
+        else:
+            shutil.rmtree(get_temp_route(filename))
+            os.makedirs(get_temp_route(filename))
 
         # Procesamiento frame por frame
         while cap.isOpened():
@@ -354,162 +372,185 @@ class BehaviorDetector:
             if not ret:
                 break
 
-            # Convertir BGR a RGB
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Incrementar contador de frames
+            frame_counter += 1
+            frame_idx += 1
 
-            # Detectar poses, manos y cara
-            pose_results = self.pose.process(frame_rgb)
-            hand_results = self.hands.process(frame_rgb)
-            face_results = self.face_mesh.process(frame_rgb)
-
-            # Tiempo actual del video
-            current_time = frame_idx / fps
-
-            # Frame para visualización
+            # Procesar solo cada N frames según frame_skip (pero escribir todos los frames)
+            process_this_frame = (frame_counter % self.frame_skip == 0)
+            
+            # Crear una copia del frame para escribir al video de salida
             output_frame = frame.copy()
 
-            # Variables para comportamientos detectados en este frame
-            behaviors = {
-                'hidden_hands': False,
-                'excessive_gaze': False,
-                'erratic_movements': False
-            }
+            # Si toca procesar este frame
+            if process_this_frame:
+                # Convertir BGR a RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Procesar si se detectó una persona
-            if pose_results.pose_landmarks:
-                # Extraer coordenadas del cuerpo central
-                torso_landmarks = [
-                    pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER],
-                    pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER],
-                    pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP],
-                    pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP]
-                ]
+                # Detectar poses, manos y cara
+                pose_results = self.pose.process(frame_rgb)
+                hand_results = self.hands.process(frame_rgb)
+                face_results = self.face_mesh.process(frame_rgb)
 
-                # Calcular posición central
-                current_x = sum(l.x for l in torso_landmarks) / len(torso_landmarks)
-                current_y = sum(l.y for l in torso_landmarks) / len(torso_landmarks)
-                position = (current_x, current_y)
+                # Tiempo actual del video
+                current_time = frame_idx / fps
 
-                # 1. Detectar ocultación de manos o manipulación de bolsillos
-                multi_hand_landmarks = hand_results.multi_hand_landmarks if hand_results.multi_hand_landmarks else []
-                hands_in_pockets = self.detect_hand_pockets(pose_results.pose_landmarks, multi_hand_landmarks,
-                                                            frame.shape)
+                # Variables para comportamientos detectados en este frame
+                behaviors = {
+                    'hidden_hands': False,
+                    'excessive_gaze': False,
+                    'erratic_movements': False
+                }
 
-                if hands_in_pockets:
-                    self.person_data['hidden_hands_frames'] += 1
-                    self.person_data['hidden_hands_duration'] = self.person_data['hidden_hands_frames'] / fps
+                # Procesar si se detectó una persona
+                if pose_results.pose_landmarks:
+                    # Extraer coordenadas del cuerpo central
+                    torso_landmarks = [
+                        pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER],
+                        pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER],
+                        pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP],
+                        pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP]
+                    ]
 
-                    if 'hidden_hands' not in self.person_data['suspicious_start_times']:
-                        self.person_data['suspicious_start_times']['hidden_hands'] = current_time
-                        self.person_data['hidden_hands_position'] = position
+                    # Calcular posición central
+                    current_x = sum(l.x for l in torso_landmarks) / len(torso_landmarks)
+                    current_y = sum(l.y for l in torso_landmarks) / len(torso_landmarks)
+                    position = (current_x, current_y)
 
-                    # Verificar si ha pasado suficiente tiempo con manos ocultas
-                    if (self.person_data['hidden_hands_frames'] > self.hidden_hands_frame_threshold and
-                            self.person_data['hidden_hands_duration'] >= self.hidden_hands_time_threshold):
-                        behaviors['hidden_hands'] = True
+                    # 1. Detectar ocultación de manos o manipulación de bolsillos
+                    multi_hand_landmarks = hand_results.multi_hand_landmarks if hand_results.multi_hand_landmarks else []
+                    hands_in_pockets = self.detect_hand_pockets(pose_results.pose_landmarks, multi_hand_landmarks,
+                                                                frame.shape)
 
-                        if 'hidden_hands' not in self.person_data['alerted']:
-                            self.person_data['alerted'].add('hidden_hands')
+                    if hands_in_pockets:
+                        # Incrementar considerando los frames saltados
+                        self.person_data['hidden_hands_frames'] += self.frame_skip
+                        self.person_data['hidden_hands_duration'] = self.person_data['hidden_hands_frames'] / fps
 
-                        h, w, _ = frame.shape
-                        pos_x, pos_y = int(position[0] * w), int(position[1] * h)
-                        cv2.putText(output_frame, "Manos ocultas",
-                                    (pos_x - 60, pos_y - 30),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                else:
-                    self.person_data['hidden_hands_frames'] = 0
-                    self.person_data['hidden_hands_duration'] = 0
-                    if 'hidden_hands' in self.person_data['suspicious_start_times']:
-                        del self.person_data['suspicious_start_times']['hidden_hands']
-                    if 'hidden_hands' in self.person_data['alerted']:
-                        self.person_data['alerted'].remove('hidden_hands')
+                        if 'hidden_hands' not in self.person_data['suspicious_start_times']:
+                            self.person_data['suspicious_start_times']['hidden_hands'] = current_time
+                            self.person_data['hidden_hands_position'] = position
 
-                # 2. Detectar miradas excesivas
-                face_landmarks = face_results.multi_face_landmarks[0] if face_results.multi_face_landmarks else None
-                excessive_gaze = self.detect_excessive_gaze(face_landmarks, pose_results.pose_landmarks,
-                                                            frame.shape, current_time)
+                        # Verificar si ha pasado suficiente tiempo con manos ocultas
+                        if (self.person_data['hidden_hands_frames'] > self.hidden_hands_frame_threshold and
+                                self.person_data['hidden_hands_duration'] >= self.hidden_hands_time_threshold):
+                            behaviors['hidden_hands'] = True
 
-                if excessive_gaze:
-                    behaviors['excessive_gaze'] = True
+                            if 'hidden_hands' not in self.person_data['alerted']:
+                                self.person_data['alerted'].add('hidden_hands')
 
-                    if 'excessive_gaze' not in self.person_data['alerted']:
-                        self.person_data['alerted'].add('excessive_gaze')
+                            h, w, _ = frame.shape
+                            pos_x, pos_y = int(position[0] * w), int(position[1] * h)
+                            cv2.putText(output_frame, "Manos ocultas",
+                                      (pos_x - 60, pos_y - 30),
+                                      cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    else:
+                        self.person_data['hidden_hands_frames'] = 0
+                        self.person_data['hidden_hands_duration'] = 0
+                        if 'hidden_hands' in self.person_data['suspicious_start_times']:
+                            del self.person_data['suspicious_start_times']['hidden_hands']
+                        if 'hidden_hands' in self.person_data['alerted']:
+                            self.person_data['alerted'].remove('hidden_hands')
 
-                    h, w, _ = frame.shape
-                    pos_x, pos_y = int(position[0] * w), int(position[1] * h - 60)
-                    cv2.putText(output_frame, "Mirada excesiva",
-                                (pos_x - 60, pos_y),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    # 2. Detectar miradas excesivas
+                    face_landmarks = face_results.multi_face_landmarks[0] if face_results.multi_face_landmarks else None
+                    excessive_gaze = self.detect_excessive_gaze(face_landmarks, pose_results.pose_landmarks,
+                                                              frame.shape, current_time)
 
-                # 3. Detectar movimientos erráticos o temblores
-                erratic_movement = self.detect_erratic_movements(pose_results.pose_landmarks, frame.shape, fps)
+                    if excessive_gaze:
+                        behaviors['excessive_gaze'] = True
 
-                if erratic_movement:
-                    if 'erratic_movements' not in self.person_data['suspicious_start_times']:
-                        self.person_data['suspicious_start_times']['erratic_movements'] = current_time
-
-                    # Verificar duración del comportamiento
-                    movement_duration = current_time - self.person_data['suspicious_start_times']['erratic_movements']
-
-                    if movement_duration >= 1.0:  # Al menos 1 segundo de movimientos erráticos
-                        behaviors['erratic_movements'] = True
-
-                        if 'erratic_movements' not in self.person_data['alerted']:
-                            self.person_data['alerted'].add('erratic_movements')
+                        if 'excessive_gaze' not in self.person_data['alerted']:
+                            self.person_data['alerted'].add('excessive_gaze')
 
                         h, w, _ = frame.shape
-                        pos_x, pos_y = int(position[0] * w), int(position[1] * h - 90)
-                        cv2.putText(output_frame, "Mov. erratico/temblor",
-                                    (pos_x - 90, pos_y),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                else:
-                    if 'erratic_movements' in self.person_data['suspicious_start_times']:
-                        del self.person_data['suspicious_start_times']['erratic_movements']
-                    if 'erratic_movements' in self.person_data['alerted']:
-                        self.person_data['alerted'].remove('erratic_movements')
+                        pos_x, pos_y = int(position[0] * w), int(position[1] * h - 60)
+                        cv2.putText(output_frame, "Mirada excesiva",
+                                  (pos_x - 60, pos_y),
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-                # Guardar detecciones para este frame
-                if any(behaviors.values()):
-                    detections.append({
-                        'timestamp': current_time,
-                        'behaviors': [b for b, detected in behaviors.items() if detected]
-                    })
+                    # 3. Detectar movimientos erráticos o temblores
+                    erratic_movement = self.detect_erratic_movements(pose_results.pose_landmarks, frame.shape, fps)
 
-                # Dibujar landmarks para visualización
-                self.mp_drawing.draw_landmarks(
-                    output_frame,
-                    pose_results.pose_landmarks,
-                    self.mp_pose.POSE_CONNECTIONS)
+                    if erratic_movement:
+                        if 'erratic_movements' not in self.person_data['suspicious_start_times']:
+                            self.person_data['suspicious_start_times']['erratic_movements'] = current_time
 
-                if hand_results.multi_hand_landmarks:
-                    for hand_landmarks in hand_results.multi_hand_landmarks:
-                        self.mp_drawing.draw_landmarks(
-                            output_frame,
-                            hand_landmarks,
-                            self.mp_hands.HAND_CONNECTIONS)
+                        # Verificar duración del comportamiento
+                        movement_duration = current_time - self.person_data['suspicious_start_times']['erratic_movements']
 
-                # Dibujar FaceMesh si está disponible
-                if face_results.multi_face_landmarks:
-                    for face_landmarks in face_results.multi_face_landmarks:
-                        # Dibujar solo el contorno facial y los ojos
-                        connections = []
-                        for connection in mp.solutions.face_mesh.FACEMESH_CONTOURS:
-                            connections.append(connection)
-                        self.mp_drawing.draw_landmarks(
-                            output_frame,
-                            face_landmarks,
-                            connections,
-                            landmark_drawing_spec=None)
+                        if movement_duration >= 1.0:  # Al menos 1 segundo de movimientos erráticos
+                            behaviors['erratic_movements'] = True
 
-            # Mostrar contador de personas en la esquina
-            num_people = 1 if pose_results.pose_landmarks else 0
-            cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                            if 'erratic_movements' not in self.person_data['alerted']:
+                                self.person_data['alerted'].add('erratic_movements')
+
+                            h, w, _ = frame.shape
+                            pos_x, pos_y = int(position[0] * w), int(position[1] * h - 90)
+                            cv2.putText(output_frame, "Mov. erratico/temblor",
+                                      (pos_x - 90, pos_y),
+                                      cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    else:
+                        if 'erratic_movements' in self.person_data['suspicious_start_times']:
+                            del self.person_data['suspicious_start_times']['erratic_movements']
+                        if 'erratic_movements' in self.person_data['alerted']:
+                            self.person_data['alerted'].remove('erratic_movements')
+
+                    # Guardar detecciones para este frame
+                    if any(behaviors.values()):
+                        detections.append({
+                            'timestamp': current_time,
+                            'behaviors': [b for b, detected in behaviors.items() if detected]
+                        })
+
+                    # Dibujar landmarks para visualización
+                    self.mp_drawing.draw_landmarks(
+                        output_frame,
+                        pose_results.pose_landmarks,
+                        self.mp_pose.POSE_CONNECTIONS)
+
+                    if hand_results.multi_hand_landmarks:
+                        for hand_landmarks in hand_results.multi_hand_landmarks:
+                            self.mp_drawing.draw_landmarks(
+                                output_frame,
+                                hand_landmarks,
+                                self.mp_hands.HAND_CONNECTIONS)
+
+                    # Dibujar FaceMesh si está disponible
+                    if face_results.multi_face_landmarks:
+                        for face_landmarks in face_results.multi_face_landmarks:
+                            # Dibujar solo el contorno facial y los ojos
+                            connections = []
+                            for connection in mp.solutions.face_mesh.FACEMESH_CONTOURS:
+                                connections.append(connection)
+                            self.mp_drawing.draw_landmarks(
+                                output_frame,
+                                face_landmarks,
+                                connections,
+                                landmark_drawing_spec=None)
+
+                # Mostrar contador de personas en la esquina
+                num_people = 1 if pose_results.pose_landmarks else 0
+                cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
+                          cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+                frame_filename = os.path.join(get_temp_route(filename), f"frame_{frame_idx:06d}.jpg")
+                cv2.imwrite(frame_filename, output_frame)
+
+                # Mostrar modo de procesamiento en la esquina
+                # cv2.putText(output_frame, f"Procesando 1 de cada {self.frame_skip} frames", (10, 60),
+                #           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+            # Para frames que no procesan, solo mostrar información básica
+            # else:
+            #     cv2.putText(output_frame, f"Frame sin procesar", (10, 30),
+            #               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            #     cv2.putText(output_frame, f"Procesando 1 de cada {self.frame_skip} frames", (10, 60),
+            #               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
             # Escribir frame procesado al video de salida
             out.write(output_frame)
 
-            frame_idx += 1
             # Mostrar progreso cada 100 frames
             if frame_idx % 100 == 0:
                 print(f"Procesado {frame_idx}/{total_frames} frames ({frame_idx / total_frames * 100:.1f}%)")

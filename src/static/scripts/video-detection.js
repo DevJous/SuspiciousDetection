@@ -1,127 +1,139 @@
-document.addEventListener('DOMContentLoaded', function() {
-            const uploadForm = document.getElementById('upload-form');
-            const videoFile = document.getElementById('video-file');
-            const uploadBtn = document.getElementById('upload-btn');
-            const progressContainer = document.getElementById('progress-container');
-            const videoContainer = document.getElementById('video-container');
-            const resultsContainer = document.getElementById('results-container');
-            const processedVideo = document.getElementById('processed-video');
-            const timestampsList = document.getElementById('timestamps-list');
+var filename = '';
 
-            uploadForm.addEventListener('submit', function(e) {
-                e.preventDefault();
+document.addEventListener('DOMContentLoaded', function () {
+    const uploadForm = document.getElementById('upload-form');
+    const videoFile = document.getElementById('video-file');
+    const uploadBtn = document.getElementById('upload-btn');
+    const progressContainer = document.getElementById('progress-container');
+    const videoContainer = document.getElementById('video-container');
+    const resultsContainer = document.getElementById('results-container');
+    const processedVideo = document.getElementById('processed-video');
+    const timestampsList = document.getElementById('timestamps-list');
+    const imgProcessed = document.getElementById('img-processed-video');
 
-                if (!videoFile.files[0]) {
-                    alert('Por favor seleccione un archivo de video');
-                    return;
+    
+    videoFile.addEventListener("change", function (event) {
+        const file = event.target.files[0];
+        if (file) {
+            const videoPreview = document.getElementById("loaded-video");
+            videoPreview.src = URL.createObjectURL(file);
+            videoPreview.load();
+
+            videoContainer.style.display = 'flex';
+            filename = file.name;
+        }
+    });
+
+    uploadForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        if (!videoFile.files[0]) {
+            alert('Por favor seleccione un archivo de video');
+            return;
+        }
+
+        imgProcessed.src = `http://localhost:5000/video_stream/processed_${filename}`;
+
+        // Crear FormData para enviar el archivo
+        const formData = new FormData();
+        formData.append('video', videoFile.files[0]);
+
+        // Mostrar progreso y desactivar botón
+        uploadBtn.disabled = true;
+        progressContainer.style.display = 'block';
+
+        // Enviar solicitud AJAX
+        fetch('/new-upload', {
+            method: 'POST',
+            body: formData
+        }).then(response => {
+            if (!response.ok) {
+                throw new Error('Error en el servidor');
+            }
+
+            return response.json();
+        }).then(data => {
+            // Procesar respuesta
+            uploadBtn.disabled = false;
+            progressContainer.style.display = 'none';
+
+            // fetch(`/processed/${data.processed_video}`, {
+            //     method: 'GET'
+            // }).then(response => {
+            //     if (!response.ok) {
+            //         throw new Error('Error en el servidor');
+            //     }
+            //     return response.blob();
+            // }).then(blob => {
+            //     processedVideo.src = URL.createObjectURL(blob);
+            //     //videoContainer.style.display = 'block';
+            // })
+
+            // Mostrar detecciones
+            displayDetections(data.detections);
+            resultsContainer.style.display = 'block';
+        }).catch(error => {
+            alert('Error: ' + error.message);
+            uploadBtn.disabled = false;
+            progressContainer.style.display = 'none';
+        });
+    });
+
+    function displayDetections(detections) {
+        // Limpiar lista anterior
+        timestampsList.innerHTML = '';
+
+        if (detections.length === 0) {
+            timestampsList.innerHTML = '<p class="text-center">No se detectaron comportamientos sospechosos.</p>';
+            return;
+        }
+
+        // Mostrar cada detección
+        detections.forEach((detection, index) => {
+            const item = document.createElement('div');
+            item.className = 'timestamp-item';
+            item.dataset.time = detection.timestamp;
+
+            // Formatear tiempo (segundos a MM:SS)
+            const minutes = Math.floor(detection.timestamp / 60);
+            const seconds = Math.floor(detection.timestamp % 60);
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            // Crear HTML para comportamientos
+            let behaviorsHTML = '';
+            detection.behaviors.forEach(behavior => {
+                let label = '';
+                let className = '';
+
+                switch (behavior) {
+                    case 'excessive_gaze':
+                        label = 'Mirada excesiva';
+                        className = 'excessive-gaze';
+                        break;
+                    case 'hidden_hands':
+                        label = 'Manos ocultas';
+                        className = 'hidden-hands';
+                        break;
+                    case 'erratic_movements':
+                        label = 'Movimientos erráticos';
+                        className = 'erratic-movements';
+                        break;
                 }
 
-                // Crear FormData para enviar el archivo
-                const formData = new FormData();
-                formData.append('video', videoFile.files[0]);
-
-                // Mostrar progreso y desactivar botón
-                uploadBtn.disabled = true;
-                progressContainer.style.display = 'block';
-
-                // Enviar solicitud AJAX
-                fetch('/new-upload', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Error en el servidor');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Procesar respuesta
-                    uploadBtn.disabled = false;
-                    progressContainer.style.display = 'none';
-
-                    // Mostrar video procesado
-//                    processedVideo.src = data.processed_video;
-//                    videoContainer.style.display = 'block';
-
-                   fetch(`/processed/${data.processed_video}`, {
-                       method: 'GET'
-                   }).then(response => {
-                        if (!response.ok) {
-                            throw new Error('Error en el servidor');
-                        }
-                        return response.blob();
-                    }).then(blob => {
-                        processedVideo.src = URL.createObjectURL(blob);
-                       videoContainer.style.display = 'block';
-                    })
-
-                    // Mostrar detecciones
-                    displayDetections(data.detections);
-                    resultsContainer.style.display = 'block';
-                })
-                .catch(error => {
-                    alert('Error: ' + error.message);
-                    uploadBtn.disabled = false;
-                    progressContainer.style.display = 'none';
-                });
+                behaviorsHTML += `<span class="behavior-tag ${className}">${label}</span>`;
             });
 
-            function displayDetections(detections) {
-                // Limpiar lista anterior
-                timestampsList.innerHTML = '';
-
-                if (detections.length === 0) {
-                    timestampsList.innerHTML = '<p class="text-center">No se detectaron comportamientos sospechosos.</p>';
-                    return;
-                }
-
-                // Mostrar cada detección
-                detections.forEach((detection, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'timestamp-item';
-                    item.dataset.time = detection.timestamp;
-
-                    // Formatear tiempo (segundos a MM:SS)
-                    const minutes = Math.floor(detection.timestamp / 60);
-                    const seconds = Math.floor(detection.timestamp % 60);
-                    const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-                    // Crear HTML para comportamientos
-                    let behaviorsHTML = '';
-                    detection.behaviors.forEach(behavior => {
-                        let label = '';
-                        let className = '';
-
-                        switch(behavior) {
-                            case 'excessive_gaze':
-                                label = 'Mirada excesiva';
-                                className = 'excessive-gaze';
-                                break;
-                            case 'hidden_hands':
-                                label = 'Manos ocultas';
-                                className = 'hidden-hands';
-                                break;
-                            case 'erratic_movements':
-                                label = 'Movimientos erráticos';
-                                className = 'erratic-movements';
-                                break;
-                        }
-
-                        behaviorsHTML += `<span class="behavior-tag ${className}">${label}</span>`;
-                    });
-
-                    item.innerHTML = `
+            item.innerHTML = `
                         <div><strong>${formattedTime}</strong> - ${behaviorsHTML}</div>
                     `;
 
-                    // Agregar evento click para saltar al tiempo del video
-                    item.addEventListener('click', function() {
-                        processedVideo.currentTime = detection.timestamp;
-                        processedVideo.play();
-                    });
+            // Agregar evento click para saltar al tiempo del video
+            item.addEventListener('click', function () {
+                processedVideo.currentTime = detection.timestamp;
+                processedVideo.play();
+            });
 
-                    timestampsList.appendChild(item);
-                });
-            }
+            timestampsList.appendChild(item);
         });
+    }
+});
