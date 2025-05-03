@@ -49,7 +49,7 @@ from model.PoseModule import poseDetector
 from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
 from model.BehaviorDetector import BehaviorDetector
-from Resources.Helper import get_desktop_path, get_temp_route
+from Resources.Helper import get_work_path, get_temp_route
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -1110,7 +1110,7 @@ def upload_file():
     if file.filename == '':
         return jsonify({'error': 'No se seleccionó ningún archivo'}), 400
 
-    file_path = get_desktop_path()
+    file_path = get_work_path()
     if file:
         filename = secure_filename(file.filename)
         filepath = os.path.join(file_path, filename)
@@ -1132,7 +1132,7 @@ def upload_file():
         })
 
 def generate_video(filename):
-    file_path = get_desktop_path()
+    file_path = get_work_path()
     with open(os.path.join(file_path, filename), "rb") as video:
         while chunk := video.read(1024):
             yield chunk

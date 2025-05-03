@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100..900&display=swap');
 * {
     padding: 0;
     margin: 0;
@@ -10,11 +10,16 @@
 
 .container_main {
     height: 100vh;
-    padding-top: 15vh;
+    padding-top: 13vh;
+    padding-bottom: 50px;
 }
 
 #page-title {
     margin-left: 20px;
+}
+
+#reupload-btn {
+    display: none;
 }
 
 /**/
@@ -43,9 +48,15 @@
 }
 
 #img-processed-video {
+    display: none;
     width: 100%;
-    height: auto;
-    object-fit: cover;
+    height: 100%;
+    object-fit: contain;
+}
+
+#init-info {
+    align-content: center;
+    text-align: center;
 }
 
 .timestamp-item {
@@ -80,4 +91,13 @@
 
 .erratic-movements {
     background-color: #6f42c1;
+}
+
+.separator {
+    border-bottom: 1px solid rgba(0, 0, 0, .125);
+    border-radius: .25rem;
+}
+
+.video-label {
+    font-family: "Noto Sans KR", sans-serif;
 }

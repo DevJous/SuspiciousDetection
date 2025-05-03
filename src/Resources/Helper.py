@@ -1,7 +1,9 @@
 import os
 import platform
 
-def get_desktop_path():
+# Esto es modificable, a efectos de prueba se usa la ruta "Escritorio" de Windows y la
+# ruta "home" de Linux (dependiendo del SO detectado), pero no se recomienda para producción
+def get_work_path():
     if platform.system() == 'Windows':
         try:
             import winreg
