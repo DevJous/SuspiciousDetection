@@ -6,7 +6,7 @@ import numpy as np
 import time
 import math
 from collections import defaultdict, deque
-from Resources.Helper import get_temp_route
+from Resources.Helper import get_temp_route, format_number
 
 
 class BehaviorDetector:
@@ -366,6 +366,7 @@ class BehaviorDetector:
             shutil.rmtree(get_temp_route(filename))
             os.makedirs(get_temp_route(filename))
 
+        init_index = 1
         # Procesamiento frame por frame
         while cap.isOpened():
             ret, frame = cap.read()
@@ -534,8 +535,10 @@ class BehaviorDetector:
                 cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-                frame_filename = os.path.join(get_temp_route(filename), f"frame_{frame_idx:06d}.jpg")
+                #frame_filename = os.path.join(get_temp_route(filename), f"frame_{frame_idx:06d}.jpg")
+                frame_filename = os.path.join(get_temp_route(filename), f"frame_{format_number(init_index)}.jpg")
                 cv2.imwrite(frame_filename, output_frame)
+                init_index += 1
 
                 # Mostrar modo de procesamiento en la esquina
                 # cv2.putText(output_frame, f"Procesando 1 de cada {self.frame_skip} frames", (10, 60),

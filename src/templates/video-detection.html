@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="../static/styles/video-detection.css">
     <link rel="stylesheet" href="../static/styles/header.css">
     <link rel="stylesheet" href="../static/styles/sidebar.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
@@ -24,7 +25,10 @@
                     <label for="video-file" class="form-label">Seleccionar archivo de video:</label>
                     <input class="form-control" type="file" id="video-file" accept="video/*" required>
                 </div>
-                <button type="submit" class="btn btn-primary" id="upload-btn">Procesar Video</button>
+                <button type="submit" class="btn btn-success" id="upload-btn">
+                    <i class="fa-solid fa-check"></i> Procesar video</button>
+                <button class="btn btn-secondary" id="reupload-btn">
+                    <i class="fa-solid fa-refresh"></i> Procesar nuevo video</button>
             </form>
 
             <div id="progress-container">
@@ -38,20 +42,23 @@
 
         <div id="video-container">
             <div class="card p-4 mt-4 video-preview">
-                <h4>Video Cargado</h4>
-                <div class="ratio ratio-16x9">
-                    <video id="loaded-video" controls></video>
+                <h4 class="video-label">Video Cargado</h4>
+                <label class="separator"></label>
+                <div class="ratio ratio-16x9 mt-2">
+                    <video id="loaded-video" playsinline muted></video>
                 </div>
             </div>
 
             <div class="card p-4 mt-4 video-preview">
-                <h4>Video Procesado</h4>
-                <img id="img-processed-video" alt="video procesado" width="100%" height="auto">
-                <!-- <div class="ratio ratio-16x9">
-                    <video id="processed-video" controls>
-                        <source src="http://localhost:5000/processed/Sospechoso_0.mp4" type="video/mp4">
-                    </video>
-                </div> -->
+                <h4 class="video-label">Video Procesado</h4>
+                <label class="separator"></label>
+                <div class="ratio ratio-16x9 mt-2">
+                    <img id="img-processed-video" alt="video procesado" width="100%" height="auto">
+                    <div id="init-info">
+                        <p><i>Empiece a procesar el video cargado para continuar</i></p>
+                        <img src="{{ url_for('static', filename='assets/click.gif') }}" width="150" height="175">
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -65,6 +72,7 @@
     </div>
     {% endblock %}
     {% block scripts %}
+    <script src="{{ url_for('static', filename='scripts/toast-component.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/video-detection.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>
     {% endblock %}
