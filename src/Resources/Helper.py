@@ -26,3 +26,6 @@ def get_temp_route(child=None):
             return os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "temp", child) if child else os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "temp")
     else:
         return os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "temp", child)) if child else os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "temp"))
+    
+def format_number(num, length=6):
+    return str(num).zfill(length)

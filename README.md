@@ -30,7 +30,7 @@ pip install -r requirements.txt
 ### Iniciar la Aplicación
 
 ```bash
-python app.py
+python main.py
 ```
 
 Tras ejecutarse, la aplicación estará disponible en `http://localhost:5000` (o el puerto especificado).
@@ -58,19 +58,19 @@ La interfaz principal permite:
 ## Estructura del Proyecto
 
 ```
-proyecto-flask-mediapipe/
-│
-├── main.py                  # Aplicación principal de Flask
-├── requirements.txt         # Dependencias del proyecto
-├── Resources/               # Archivos base del proyeco
-├── static/                  # Archivos estáticos
-│   ├── assets/              # Recursos de imagen o video
-│   ├── scripts/             # Scripts JavaScript 
-│   ├── style/               # Estilos por plantilla html
-│   └── style.css            # Imágenes del sistema
-├── templates/               # Plantillas HTML
-├── .env                     # Arhivo con data sensible
-└── README.md
+proyecto-suspicious-detection/
+├── src/
+│   ├── main.py                  # Aplicación principal de Flask
+│   ├── requirements.txt         # Dependencias del proyecto
+│   ├── Resources/               # Archivos base del proyeco
+│   ├── static/                  # Archivos estáticos
+│   │   ├── assets/              # Recursos de imagen o video
+│   │   ├── scripts/             # Scripts JavaScript 
+│   │   ├── style/               # Estilos por plantilla html
+│   │   └── style.css            # Estilos globales
+│   ├── templates/               # Plantillas HTML
+│   ├── .env                     # Arhivo con data sensible
+│   └── README.md                # Información del proyecto
 ```
 
 ## Formato de Datos JSON

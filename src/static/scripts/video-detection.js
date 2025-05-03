@@ -11,6 +11,40 @@ document.addEventListener('DOMContentLoaded', function () {
     const timestampsList = document.getElementById('timestamps-list');
     const imgProcessed = document.getElementById('img-processed-video');
 
+    let frameIndex = 1;
+    let failedAttempts = 0;
+    let seconds_to_wait = 6; // tiempo maximo de espera en segundos cuando no recibe respuesta positiva
+    const retryInterval = 100; // tiempo en milisegundos entre cada intento de carga de frame
+    const maxFailedAttempts = seconds_to_wait * 1000 / retryInterval; // maximo de intentos fallidos permitidos
+    
+    function actualizarFrame() {
+        const filename = `frame_${String(frameIndex).padStart(6, '0')}.jpg`;
+        const frameURL = `/frames/${removeFileExtension(this.filename)}/${filename}?` + Date.now();
+        const testImg = new Image();
+    
+        testImg.onload = () => {
+            imgProcessed.src = frameURL;
+            frameIndex++;
+            failedAttempts = 0; // reiniciar fallos si se carga exitosamente
+            setTimeout(actualizarFrame, retryInterval);
+        };
+    
+        testImg.onerror = () => {
+            failedAttempts++;
+            if (failedAttempts < maxFailedAttempts) {
+                setTimeout(actualizarFrame, retryInterval);
+            } else {
+                console.log(`Detenido: no se encontraron nuevos frames en ${seconds_to_wait} segundos.`);
+                mostrarMensajeFin();
+            }
+        };
+    
+        testImg.src = frameURL;
+    }
+
+    function removeFileExtension(filename) {
+        return filename.substring(0, filename.lastIndexOf(".")) || filename;
+    }
     
     videoFile.addEventListener("change", function (event) {
         const file = event.target.files[0];
@@ -32,9 +66,8 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        imgProcessed.src = `http://localhost:5000/video_stream/processed_${filename}`;
+        actualizarFrame();
 
-        // Crear FormData para enviar el archivo
         const formData = new FormData();
         formData.append('video', videoFile.files[0]);
 
@@ -56,18 +89,6 @@ document.addEventListener('DOMContentLoaded', function () {
             // Procesar respuesta
             uploadBtn.disabled = false;
             progressContainer.style.display = 'none';
-
-            // fetch(`/processed/${data.processed_video}`, {
-            //     method: 'GET'
-            // }).then(response => {
-            //     if (!response.ok) {
-            //         throw new Error('Error en el servidor');
-            //     }
-            //     return response.blob();
-            // }).then(blob => {
-            //     processedVideo.src = URL.createObjectURL(blob);
-            //     //videoContainer.style.display = 'block';
-            // })
 
             // Mostrar detecciones
             displayDetections(data.detections);

@@ -4,7 +4,7 @@ import io
 import uuid
 import winreg
 
-from flask import Flask, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response
+from flask import Flask, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response, send_from_directory
 import pyodbc
 import os
 import cv2 as cv
@@ -49,7 +49,7 @@ from model.PoseModule import poseDetector
 from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
 from model.BehaviorDetector import BehaviorDetector
-from Resources.Helper import get_desktop_path, get_desktop_path_linux
+from Resources.Helper import get_desktop_path, get_temp_route
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -64,7 +64,6 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 # Inicializar el modulo de detección de poses
 detector = poseDetector()
-current_os = 'windows' # Cambia esto según tu sistema operativo
 
 # region RENDER_VIEWS_ROUTES
 # ROUTES
@@ -1111,18 +1110,18 @@ def upload_file():
     if file.filename == '':
         return jsonify({'error': 'No se seleccionó ningún archivo'}), 400
 
-    file_path = get_desktop_path() if current_os == 'windows' else get_desktop_path_linux()
+    file_path = get_desktop_path()
     if file:
         filename = secure_filename(file.filename)
         filepath = os.path.join(file_path, filename)
         file.save(filepath)
 
         # Verificar si el video procesado ya existe y lo elimina
-        if os.path.exists(os.path.join(file_path, 'processed_' + filename)):
-            os.remove(os.path.join(file_path, 'processed_' + filename))
+        if os.path.exists(os.path.join(file_path, 'procesados', 'processed_' + filename)):
+            os.remove(os.path.join(file_path,'procesados', 'processed_' + filename))
 
         # Procesar el video
-        output_path = os.path.join(file_path, 'processed_' + filename)
+        output_path = os.path.join(file_path, 'procesados', 'processed_' + filename)
         detector = BehaviorDetector()
         results = detector.process_video(filepath, output_path)
 
@@ -1133,7 +1132,7 @@ def upload_file():
         })
 
 def generate_video(filename):
-    file_path = get_desktop_path() if current_os == 'windows' else get_desktop_path_linux()
+    file_path = get_desktop_path()
     with open(os.path.join(file_path, filename), "rb") as video:
         while chunk := video.read(1024):
             yield chunk
@@ -1143,6 +1142,9 @@ def processed_file(filename):
     return Response(generate_video(filename), mimetype='video/mp4')
 
 
+@app.route('/frames/<dir>/<filename>')
+def get_frame(dir, filename):
+    return send_from_directory(get_temp_route(dir), filename)
     
 # endregion
 
