@@ -1,5 +1,6 @@
-var filename = '';
+var framesSkipToAnalyze = 3; // por defecto
 var isProcessing = false;
+var filename = '';
 
 document.addEventListener('DOMContentLoaded', function () {
     const uploadForm = document.getElementById('upload-form');
@@ -14,6 +15,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const timestampsList = document.getElementById('timestamps-list');
     const imgProcessed = document.getElementById('img-processed-video');
     const videoPreview = document.getElementById("loaded-video");
+    const ddMenuButton = document.getElementById("dropdownMenuButton");
+    const ddItems = document.querySelectorAll('.dropdown-item');
+    const labelWarning = document.getElementById('label-warning');
 
     let frameIndex = 1;
     let failedAttempts = 0;
@@ -28,6 +32,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const testImg = new Image();
 
             testImg.onload = () => {
+                if(frameIndex <= 1) {
+                    initInfo.style.display = 'none';
+                    imgProcessed.style.display = 'block';
+                }
                 imgProcessed.src = frameURL;
                 frameIndex++;
                 failedAttempts = 0; // reiniciar fallos si se carga exitosamente
@@ -68,8 +76,8 @@ document.addEventListener('DOMContentLoaded', function () {
     uploadForm.addEventListener('submit', function (e) {
         e.preventDefault();
 
-        initInfo.style.display = 'none';
-        imgProcessed.style.display = 'block';
+        //initInfo.style.display = 'none';
+        //imgProcessed.style.display = 'block';
         process_video();
     });
 
@@ -77,11 +85,34 @@ document.addEventListener('DOMContentLoaded', function () {
         location.reload();
     });
 
+    ddItems.forEach(item => {
+        item.addEventListener('click', function (e) {
+            e.preventDefault(); // Previene el salto por el href="#"
+            
+            let selectedText = this.textContent.trim();
+            if(!selectedText.includes('Sin saltos')) {
+                framesSkipToAnalyze = parseInt(selectedText.match(/\d+/)[0]);
+                if(selectedText.includes("defecto")) selectedText = selectedText.replace('(Por defecto)', '');
+                ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> Analizar cada: ${selectedText} `;
+            } else {
+                framesSkipToAnalyze = 0;
+                ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> ${selectedText} `;
+            }
+
+            if(framesSkipToAnalyze < 3) {
+                labelWarning.style.display = 'block';
+            } else {
+                labelWarning.style.display = 'none';
+            }
+        });
+    });
+
     function process_video() {
         if (!videoFile.files[0]) {
             alert('Por favor seleccione un archivo de video');
             return;
         }
+        ddMenuButton.disabled = true;
         uploadBtn.disabled = true;
         videoFile.disabled = true;
         showToast("Procesando video", "info");
@@ -100,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
         progressContainer.style.display = 'block';
 
         // Enviar solicitud AJAX
-        fetch('/new-upload', {
+        fetch(`/new-upload/${framesSkipToAnalyze}`, {
             method: 'POST',
             body: formData
         }).then(response => {
@@ -117,8 +148,8 @@ document.addEventListener('DOMContentLoaded', function () {
             progressContainer.style.display = 'none';
 
             // Mostrar detecciones
-            displayDetections(data.detections);
-            resultsContainer.style.display = 'block';
+            //displayDetections(data.detections);
+            //resultsContainer.style.display = 'block';
         }).catch(error => {
             progressContainer.style.display = 'none';
             reuploadBtn.style.display = 'inline-block';

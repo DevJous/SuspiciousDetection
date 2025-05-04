@@ -1,3 +1,4 @@
+from multiprocessing import process
 import cv2
 import os
 import shutil
@@ -16,7 +17,6 @@ class BehaviorDetector:
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_face_mesh = mp.solutions.face_mesh
-
         # Nuevo parámetro para configurar cuántos frames saltar
         self.frame_skip = frame_skip
 
@@ -356,8 +356,9 @@ class BehaviorDetector:
         detections = []
 
         # Ajustar umbrales para compensar frames saltados
-        self.hidden_hands_frame_threshold = max(1, self.hidden_hands_frame_threshold // self.frame_skip)
-        self.tremor_frames_threshold = max(1, self.tremor_frames_threshold // self.frame_skip)
+        if self.frame_skip > 0:
+            self.hidden_hands_frame_threshold = max(1, self.hidden_hands_frame_threshold // self.frame_skip)
+            self.tremor_frames_threshold = max(1, self.tremor_frames_threshold // self.frame_skip)
 
         filename, extension = os.path.splitext(os.path.basename(input_path))
         if not os.path.exists(get_temp_route(filename)):
@@ -378,7 +379,8 @@ class BehaviorDetector:
             frame_idx += 1
 
             # Procesar solo cada N frames según frame_skip (pero escribir todos los frames)
-            process_this_frame = (frame_counter % self.frame_skip == 0)
+            #process_this_frame = (frame_counter % self.frame_skip == 0)
+            process_this_frame = (self.frame_skip == 0) or (frame_counter % self.frame_skip == 0)
             
             # Crear una copia del frame para escribir al video de salida
             output_frame = frame.copy()
