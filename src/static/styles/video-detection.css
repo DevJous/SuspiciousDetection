@@ -42,6 +42,11 @@
     width: 550px;
 }
 
+#label-warning {
+    display: none;
+    color: rgb(235, 36, 36);
+}
+
 #results-container {
     margin-top: 20px;
     display: none;

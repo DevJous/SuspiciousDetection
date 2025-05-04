@@ -25,12 +25,33 @@
                     <label for="video-file" class="form-label">Seleccionar archivo de video:</label>
                     <input class="form-control" type="file" id="video-file" accept="video/*" required>
                 </div>
-                <button type="submit" class="btn btn-success" id="upload-btn">
-                    <i class="fa-solid fa-check"></i> Procesar video</button>
-                <button class="btn btn-secondary" id="reupload-btn">
-                    <i class="fa-solid fa-refresh"></i> Procesar nuevo video</button>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-success" id="upload-btn">
+                        <i class="fa-solid fa-check"></i> Procesar video</button>
+                    <div class="dropdown-vd">
+                        <button class="btn btn-info dropdown-toggle" type="button" id="dropdownMenuButton"
+                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <i class="fa-solid fa-sliders"></i> Analizar cada: 3 frames
+                        </button>
+                        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                            <a class="dropdown-item" href="#">Sin saltos de frames</a>
+                            <a class="dropdown-item" href="#">1 frame</a>
+                            <a class="dropdown-item" href="#">2 frames</a>
+                            <a class="dropdown-item" href="#">3 frames (Por defecto)</a>
+                            <a class="dropdown-item" href="#">4 frames</a>
+                            <a class="dropdown-item" href="#">5 frames</a>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" id="reupload-btn">
+                        <i class="fa-solid fa-refresh"></i> Procesar nuevo video</button>
+                </div>
             </form>
-
+            <div id="label-warning">
+                <span class="d-flex mt-2 align-items-center small">
+                    <i class="fa-solid fa-exclamation-triangle" aria-hidden="true"></i>
+                <label>¡Aviso! Reducir o quitar el salto de frames aumenta la carga computacional y alarga los tiempos de espera.</label>
+                </span>
+            </div>
             <div id="progress-container">
                 <p>Procesando video... Esto puede tomar algunos minutos dependiendo del tamaño del video.</p>
                 <div class="progress">
@@ -62,16 +83,23 @@
             </div>
         </div>
 
-        <div id="results-container" class="card p-4 mt-4">
+        <!-- <div id="results-container" class="card p-4 mt-4">
             <h4>Detecciones</h4>
             <p>Haga clic en un timestamp para saltar a ese momento en el video:</p>
-            <div id="timestamps-list" class="list-group">
-                <!-- Los resultados se cargarán aquí dinámicamente -->
-            </div>
-        </div>
+            <div id="timestamps-list" class="list-group"></div>
+        </div> -->
     </div>
     {% endblock %}
     {% block scripts %}
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js"
+        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
     <script src="{{ url_for('static', filename='scripts/toast-component.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/video-detection.js') }}"></script>
     <script src="{{ url_for('static', filename='scripts/navegacion.js') }}"></script>

@@ -1101,8 +1101,8 @@ def save_first_tutorial_info():
 
 # region SUSPICIOUS_DETECTION_MODULE_ENDPOINTS
 
-@app.route('/new-upload', methods=['POST'])
-def upload_file():
+@app.route('/new-upload/<frame_skip>', methods=['POST'])
+def upload_file(frame_skip):
     if 'video' not in request.files:
         return jsonify({'error': 'No se encontró el archivo de video'}), 400
 
@@ -1122,7 +1122,7 @@ def upload_file():
 
         # Procesar el video
         output_path = os.path.join(file_path, 'procesados', 'processed_' + filename)
-        detector = BehaviorDetector()
+        detector = BehaviorDetector(frame_skip=int(frame_skip))
         results = detector.process_video(filepath, output_path)
 
         # Devolver resultados
