@@ -8,6 +8,7 @@ import time
 import math
 from collections import defaultdict, deque
 from Resources.Helper import get_temp_route, format_number
+import base64
 
 
 class BehaviorDetector:
@@ -360,14 +361,6 @@ class BehaviorDetector:
             self.hidden_hands_frame_threshold = max(1, self.hidden_hands_frame_threshold // self.frame_skip)
             self.tremor_frames_threshold = max(1, self.tremor_frames_threshold // self.frame_skip)
 
-        filename, extension = os.path.splitext(os.path.basename(input_path))
-        if not os.path.exists(get_temp_route(filename)):
-            os.makedirs(get_temp_route(filename))
-        else:
-            shutil.rmtree(get_temp_route(filename))
-            os.makedirs(get_temp_route(filename))
-
-        init_index = 1
         # Procesamiento frame por frame
         while cap.isOpened():
             ret, frame = cap.read()
@@ -537,24 +530,11 @@ class BehaviorDetector:
                 cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-                #frame_filename = os.path.join(get_temp_route(filename), f"frame_{frame_idx:06d}.jpg")
-                frame_filename = os.path.join(get_temp_route(filename), f"frame_{format_number(init_index)}.jpg")
-                cv2.imwrite(frame_filename, output_frame)
-                init_index += 1
-
-                # Mostrar modo de procesamiento en la esquina
-                # cv2.putText(output_frame, f"Procesando 1 de cada {self.frame_skip} frames", (10, 60),
-                #           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-            # Para frames que no procesan, solo mostrar información básica
-            # else:
-            #     cv2.putText(output_frame, f"Frame sin procesar", (10, 30),
-            #               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            #     cv2.putText(output_frame, f"Procesando 1 de cada {self.frame_skip} frames", (10, 60),
-            #               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
             # Escribir frame procesado al video de salida
             out.write(output_frame)
+            _, buffer = cv2.imencode('.jpg', output_frame)
+            jpg_b64 = base64.b64encode(buffer).decode('utf-8')
+            yield jpg_b64
 
             # Mostrar progreso cada 100 frames
             if frame_idx % 100 == 0:
@@ -564,4 +544,4 @@ class BehaviorDetector:
         cap.release()
         out.release()
 
-        return detections
+        yield detections

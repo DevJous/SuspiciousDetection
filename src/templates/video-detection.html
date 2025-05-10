@@ -27,63 +27,97 @@
                 </div>
                 <div class="d-flex gap-2">
                     <button type="submit" class="btn btn-success" id="upload-btn">
-                        <i class="fa-solid fa-check"></i> Procesar video</button>
-                    <div class="dropdown-vd">
-                        <button class="btn btn-info dropdown-toggle" type="button" id="dropdownMenuButton"
-                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <i class="fa-solid fa-sliders"></i> Analizar cada: 3 frames
-                        </button>
-                        <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
-                            <a class="dropdown-item" href="#">Sin saltos de frames</a>
-                            <a class="dropdown-item" href="#">1 frame</a>
-                            <a class="dropdown-item" href="#">2 frames</a>
-                            <a class="dropdown-item" href="#">3 frames (Por defecto)</a>
-                            <a class="dropdown-item" href="#">4 frames</a>
-                            <a class="dropdown-item" href="#">5 frames</a>
-                        </div>
+                        <i class="fa-solid fa-check"></i>Procesar video</button>
+                    <button class="btn btn-info dropdown-toggle" type="button" id="dropdownMenuButton"
+                        data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fa-solid fa-sliders"></i>Analizar cada: 3 frames
+                    </button>
+                    <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                        <a class="dropdown-item" href="#">Sin saltos de frames</a>
+                        <a class="dropdown-item" href="#">1 frame</a>
+                        <a class="dropdown-item" href="#">2 frames</a>
+                        <a class="dropdown-item" href="#">3 frames (Por defecto)</a>
+                        <a class="dropdown-item" href="#">4 frames</a>
+                        <a class="dropdown-item" href="#">5 frames</a>
                     </div>
                     <button class="btn btn-secondary" id="reupload-btn">
                         <i class="fa-solid fa-refresh"></i> Procesar nuevo video</button>
                 </div>
-            </form>
-            <div id="label-warning">
-                <span class="d-flex mt-2 align-items-center small">
-                    <i class="fa-solid fa-exclamation-triangle" aria-hidden="true"></i>
-                <label>¡Aviso! Reducir o quitar el salto de frames aumenta la carga computacional y alarga los tiempos de espera.</label>
-                </span>
-            </div>
-            <div id="progress-container">
-                <p>Procesando video... Esto puede tomar algunos minutos dependiendo del tamaño del video.</p>
-                <div class="progress">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
-                        style="width: 100%"></div>
+                <div id="label-warning">
+                    <span class="d-flex mt-2 align-items-center small">
+                        <i class="fa-solid fa-exclamation-triangle" aria-hidden="true"></i>
+                        <label>¡Aviso! Reducir o quitar el salto de frames aumenta la carga computacional y alarga los
+                            tiempos
+                            de espera.</label>
+                    </span>
                 </div>
-            </div>
+                <div id="progress-container">
+                    <p>Procesando video... Esto puede tomar algunos minutos dependiendo del tamaño del video.</p>
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                            style="width: 100%"></div>
+                    </div>
+                </div>
         </div>
-
+        </form>
         <div id="video-container">
             <div class="card p-4 mt-4 video-preview">
-                <h4 class="video-label">Video Cargado</h4>
+                <h4 class="video-label"><i class="fa-solid fa-cloud-upload"></i>Video Cargado</h4>
                 <label class="separator"></label>
                 <div class="ratio ratio-16x9 mt-2">
-                    <video id="loaded-video" playsinline muted></video>
+                    <video id="loaded-video" playsinline muted controls></video>
+                    <div id="load-video-info">
+                        <p id="text-info" class="mb-4"><i>Cargue el video a procesar para continuar</i></p>
+                        <img src="{{ url_for('static', filename='assets/upload.gif') }}" width="145" height="145">
+                    </div>
                 </div>
             </div>
 
             <div class="card p-4 mt-4 video-preview">
-                <h4 class="video-label">Video Procesado</h4>
+                <h4 class="video-label"><i class="fa-solid fa-spinner"></i>Video Procesado</h4>
                 <label class="separator"></label>
                 <div class="ratio ratio-16x9 mt-2">
                     <img id="img-processed-video" alt="video procesado" width="100%" height="auto">
                     <div id="init-info">
-                        <p><i>Empiece a procesar el video cargado para continuar</i></p>
-                        <img src="{{ url_for('static', filename='assets/click.gif') }}" width="150" height="175">
+                        <p id="text-info"><i>Procese el video cargado para continuar</i></p>
+                        <img src="{{ url_for('static', filename='assets/click.gif') }}" width="150" height="160">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-4 mt-4 video-preview">
+                <h4 class="video-label"><i class="fa-solid fa-info-circle"></i>Información y Resultado</h4>
+                <label class="separator"></label>
+                <div class="ratio ratio-16x9 mt-2 d-flex flex-column">
+                    <div class="sub-container">
+                        <div class="ir-info">
+                            <div>
+                                <label class="mt-2 small">El sistema analiza patrones de movimiento y postura
+                                    para identificar comportamientos sospechosos en tiempo real. Entre los que se
+                                    encuentran:</label>
+                                <div id="labels-info" class="d-flex flex-column mt-1 small">
+                                    <label><i class="fa-solid fa-eye"></i>Giros bruscos de cabeza</label>
+                                    <label><i class="fa-solid fa-angle-double-right"></i>Movimiento tembloroso</label>
+                                    <label><i class="fa-solid fa-hand-paper"></i>Manos ocultas</label>
+                                </div>
+                            </div>
+                            <img src="https://cdn3d.iconscout.com/3d/premium/thumb/policeman-3d-icon-download-in-png-blend-fbx-gltf-file-formats--police-security-officer-avatar-professions-pack-avatars-icons-5250850.png"
+                                width="100" height="90">
+                        </div>
+                        <div class=" d-flex flex-column justify-content-center mt-1">
+                            <label class="separator"></label>
+                            <label class="mt-2">Los resultados se mostrarán una vez se procese un video...</label>
+                            <button id="view-results" type="button" class="btn btn-secondary mt-2"><i
+                                    class="fa-solid fa-search"></i>Visualizar Resultados</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- <div id="results-container" class="card p-4 mt-4">
+
+    <!-- <div id="results-container" class="card p-4 mt-4">
             <h4>Detecciones</h4>
             <p>Haga clic en un timestamp para saltar a ese momento en el video:</p>
             <div id="timestamps-list" class="list-group"></div>
