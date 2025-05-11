@@ -1157,33 +1157,11 @@ def get_detecciones():
 @app.route('/processed-video/<filename>')
 def get_video(filename):
     video_path = os.path.join(get_processed_route(), "Processed" + filename)
-    fixed_route = os.path.join(get_processed_route(), "FixProcessed" + filename)
-    if os.path.exists(video_path) or os.path.exists(fixed_route):
-        if not os.path.exists(fixed_route):
-            fix_processed_video(video_path, fixed_route)
-        else:
-            if os.path.exists(video_path):
-                os.remove(video_path)
-
-        return send_file(fixed_route, mimetype='video/mp4')
+    if os.path.exists(video_path):
+        return send_file(video_path, mimetype='video/mp4')
     else:
         abort(404, description="Video no encontrado")
-
-def fix_processed_video(input_path, output_path):
-    comando = [
-        r"D:\ffmpeg\bin\ffmpeg.exe",
-        "-y",  # Sobrescribe el archivo de salida sin preguntar
-        "-i", input_path,
-        "-vcodec", "libx264",
-        "-acodec", "aac",
-        output_path
-    ]
-    try:
-        subprocess.run(comando, check=True)
-        print("Se corrigio el archivo de video correctamente.")
-    except subprocess.CalledProcessError as e:
-        print("Error en la conversión:", e)
-
+        
 # endregion
 
 if __name__ == '__main__':

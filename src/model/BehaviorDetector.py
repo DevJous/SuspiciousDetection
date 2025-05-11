@@ -350,7 +350,7 @@ class BehaviorDetector:
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
             # Configurar video de salida
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')
             out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
             frame_idx = 0
