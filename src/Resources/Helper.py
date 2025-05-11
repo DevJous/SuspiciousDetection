@@ -36,11 +36,11 @@ def get_processed_route(child=None):
             reg_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
             desktop_path, _ = winreg.QueryValueEx(reg_key, "Desktop")
             winreg.CloseKey(reg_key)
-            return os.path.join(desktop_path, "SospiciousDetection", "processeds", child) if child else os.path.join(desktop_path, "SospiciousDetection", "processeds")
+            return os.path.join(desktop_path, "SospiciousDetection", "Processeds", child) if child else os.path.join(desktop_path, "SospiciousDetection", "Processeds")
         except:
-            return os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "processeds", child) if child else os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "processeds")
+            return os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "Processeds", child) if child else os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "Processeds")
     else:
-        return os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "processeds", child)) if child else os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "processeds"))
+        return os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "Processeds", child)) if child else os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "Processeds"))
     
 def format_number(num, length=6):
     return str(num).zfill(length)

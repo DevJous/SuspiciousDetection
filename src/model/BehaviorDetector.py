@@ -531,11 +531,13 @@ class BehaviorDetector:
                     cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-                # Escribir frame procesado al video de salida
-                out.write(output_frame)
+                
                 _, buffer = cv2.imencode('.jpg', output_frame)
                 jpg_b64 = base64.b64encode(buffer).decode('utf-8')
                 yield jpg_b64
+
+                # Escribir frame procesado al video de salida
+                out.write(output_frame)
 
                 # Mostrar progreso cada 100 frames
                 if frame_idx % 100 == 0:

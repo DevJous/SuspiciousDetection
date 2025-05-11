@@ -141,17 +141,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     closeModalBtn.addEventListener('click', function () {
-        modal.style.display = "none";
+        closeModal()
     });
 
     document.addEventListener('keyup', function (event) {
         if (event.key === 'Escape' && modal.style.display === 'block') {
-            modal.style.display = "none";
+            closeModal()
         }
     });
 
+    function closeModal() {
+        modal.style.display = "none";
+    }
+
     function setProcessedVideo() {
-        fetch(`http://localhost:5000/video/${filename}`)
+        fetch(`http://localhost:5000/processed-video/${filename}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error("Video no encontrado");

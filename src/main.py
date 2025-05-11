@@ -1,6 +1,7 @@
 import datetime
 from genericpath import exists
 import io
+import subprocess
 #import uuid
 
 from flask import Flask, abort, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response, send_from_directory
@@ -1128,11 +1129,11 @@ def stream_frames(filename, frame_skip):
     filepath = os.path.join(file_path, filename)
 
     # Verificar si el video procesado ya existe y lo elimina
-    if os.path.exists(os.path.join(file_path, 'processeds', 'processed_' + filename)):
-        os.remove(os.path.join(file_path,'processeds', 'processed_' + filename))
+    if os.path.exists(os.path.join(file_path, 'Processeds', 'Processed' + filename)):
+        os.remove(os.path.join(file_path,'Processeds', 'Processed' + filename))
 
     # Procesar el video
-    output_path = os.path.join(file_path, 'processeds', 'processed_' + filename)
+    output_path = os.path.join(file_path, 'Processeds', 'Processed' + filename)
 
     def generar():
         global detecciones_guardadas
@@ -1153,31 +1154,35 @@ def stream_frames(filename, frame_skip):
 def get_detecciones():
     return jsonify(detecciones_guardadas)
 
-def generate_video(filename):
-    filepath = os.path.join(get_processed_route(), filename)
-    print ('filepath:', filepath)
-    with open(filepath, "rb") as video:
-        while chunk := video.read(1024):
-            yield chunk
+@app.route('/processed-video/<filename>')
+def get_video(filename):
+    video_path = os.path.join(get_processed_route(), "Processed" + filename)
+    fixed_route = os.path.join(get_processed_route(), "FixProcessed" + filename)
+    if os.path.exists(video_path) or os.path.exists(fixed_route):
+        if not os.path.exists(fixed_route):
+            fix_processed_video(video_path, fixed_route)
+        else:
+            if os.path.exists(video_path):
+                os.remove(video_path)
 
-@app.route('/video/<filename>')
-def processed_file(filename):
-    return Response(generate_video(filename), mimetype='video/mp4')
-
-@app.route('/video2/<filename>')
-def get_video2(filename):
-    return send_from_directory(get_processed_route(), filename)
-
-@app.route('/video3/<filename>')
-def get_video3(filename):
-    # Ruta base donde están tus videos
-    video_path = os.path.join(get_processed_route(), filename)
-
-    # Verifica si el archivo existe
-    if os.path.exists(video_path):
-        return send_file(video_path, mimetype='video/mp4')
+        return send_file(fixed_route, mimetype='video/mp4')
     else:
         abort(404, description="Video no encontrado")
+
+def fix_processed_video(input_path, output_path):
+    comando = [
+        r"D:\ffmpeg\bin\ffmpeg.exe",
+        "-y",  # Sobrescribe el archivo de salida sin preguntar
+        "-i", input_path,
+        "-vcodec", "libx264",
+        "-acodec", "aac",
+        output_path
+    ]
+    try:
+        subprocess.run(comando, check=True)
+        print("Se corrigio el archivo de video correctamente.")
+    except subprocess.CalledProcessError as e:
+        print("Error en la conversión:", e)
 
 # endregion
 
