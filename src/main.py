@@ -1,10 +1,10 @@
 import datetime
 from genericpath import exists
 import io
-import uuid
-import winreg
+import subprocess
+#import uuid
 
-from flask import Flask, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response, send_from_directory
+from flask import Flask, abort, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response, send_from_directory
 import pyodbc
 import os
 import cv2 as cv
@@ -16,7 +16,7 @@ from shutil import copyfile
 from PIL import Image
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import psycopg2
-from requests import patch
+#from requests import patch
 from werkzeug.utils import secure_filename
 
 from Resources.QueriesProcedures import (validate_login_query,
@@ -49,7 +49,7 @@ from model.PoseModule import poseDetector
 from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
 from model.BehaviorDetector import BehaviorDetector
-from Resources.Helper import get_work_path, get_temp_route
+from Resources.Helper import get_work_path, get_processed_route, get_temp_route
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -64,6 +64,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
 # Inicializar el modulo de detección de poses
 detector = poseDetector()
+detecciones_guardadas = []
 
 # region RENDER_VIEWS_ROUTES
 # ROUTES
@@ -1101,8 +1102,8 @@ def save_first_tutorial_info():
 
 # region SUSPICIOUS_DETECTION_MODULE_ENDPOINTS
 
-@app.route('/new-upload/<frame_skip>', methods=['POST'])
-def upload_file(frame_skip):
+@app.route('/save-video', methods=['POST'])
+def save_video():
     if 'video' not in request.files:
         return jsonify({'error': 'No se encontró el archivo de video'}), 400
 
@@ -1111,41 +1112,56 @@ def upload_file(frame_skip):
         return jsonify({'error': 'No se seleccionó ningún archivo'}), 400
 
     file_path = get_work_path()
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(file_path, filename)
-        file.save(filepath)
+    full_path = os.path.join(file_path, file.filename)
 
-        # Verificar si el video procesado ya existe y lo elimina
-        if os.path.exists(os.path.join(file_path, 'procesados', 'processed_' + filename)):
-            os.remove(os.path.join(file_path,'procesados', 'processed_' + filename))
-
-        # Procesar el video
-        output_path = os.path.join(file_path, 'procesados', 'processed_' + filename)
-        detector = BehaviorDetector(frame_skip=int(frame_skip))
-        results = detector.process_video(filepath, output_path)
-
-        # Devolver resultados
-        return jsonify({
-            'processed_video': 'processed_' + filename,
-            'detections': results
-        })
-
-def generate_video(filename):
-    file_path = get_work_path()
-    with open(os.path.join(file_path, filename), "rb") as video:
-        while chunk := video.read(1024):
-            yield chunk
-
-@app.route('/processed/<filename>')
-def processed_file(filename):
-    return Response(generate_video(filename), mimetype='video/mp4')
+    if not os.path.exists(full_path):
+        file.save(full_path)
+        return jsonify({'message': 'Archivo guardado', 'filename': file.filename}), 200
+    else:
+        return jsonify({'message': 'El archivo ya existe', 'filename': file.filename}), 400
 
 
-@app.route('/frames/<dir>/<filename>')
-def get_frame(dir, filename):
-    return send_from_directory(get_temp_route(dir), filename)
+@app.route('/stream_frames/<filename>/<frame_skip>')
+def stream_frames(filename, frame_skip):
     
+    file_path = get_work_path()
+    print('filename:', filename)
+    filepath = os.path.join(file_path, filename)
+
+    # Verificar si el video procesado ya existe y lo elimina
+    if os.path.exists(os.path.join(file_path, 'Processeds', 'Processed' + filename)):
+        os.remove(os.path.join(file_path,'Processeds', 'Processed' + filename))
+
+    # Procesar el video
+    output_path = os.path.join(file_path, 'Processeds', 'Processed' + filename)
+
+    def generar():
+        global detecciones_guardadas
+        detector = BehaviorDetector(frame_skip=int(frame_skip))
+        
+        for result in detector.process_video(filepath, output_path):
+            if isinstance(result, list):  # Si es la lista de detecciones
+                # Guardar detecciones para la ruta /detecciones
+                detecciones_guardadas = result
+                # Enviamos una señal de fin con la palabra EOF
+                yield "data: EOF\n\n"
+            else:  # Si es un frame en base64 (string)
+                yield f"data: {result}\n\n"
+
+    return Response(generar(), mimetype='text/event-stream')
+
+@app.route('/detecciones')
+def get_detecciones():
+    return jsonify(detecciones_guardadas)
+
+@app.route('/processed-video/<filename>')
+def get_video(filename):
+    video_path = os.path.join(get_processed_route(), "Processed" + filename)
+    if os.path.exists(video_path):
+        return send_file(video_path, mimetype='video/mp4')
+    else:
+        abort(404, description="Video no encontrado")
+        
 # endregion
 
 if __name__ == '__main__':

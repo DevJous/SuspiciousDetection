@@ -1,5 +1,6 @@
 var framesSkipToAnalyze = 3; // por defecto
 var isProcessing = false;
+var detecciones = ['xd'];
 var filename = '';
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -10,75 +11,98 @@ document.addEventListener('DOMContentLoaded', function () {
     const initInfo = document.getElementById('init-info');
     const progressContainer = document.getElementById('progress-container');
     const videoContainer = document.getElementById('video-container');
-    const resultsContainer = document.getElementById('results-container');
-    const processedVideo = document.getElementById('processed-video');
-    const timestampsList = document.getElementById('timestamps-list');
+    // const resultsContainer = document.getElementById('results-container');
+    // const processedVideo = document.getElementById('processed-video');
+    // const timestampsList = document.getElementById('timestamps-list');
     const imgProcessed = document.getElementById('img-processed-video');
     const videoPreview = document.getElementById("loaded-video");
     const ddMenuButton = document.getElementById("dropdownMenuButton");
     const ddItems = document.querySelectorAll('.dropdown-item');
     const labelWarning = document.getElementById('label-warning');
+    const loadVideoInfo = document.getElementById('load-video-info');
+    const viewResultsBtn = document.getElementById('view-results');
+    const closeModalBtn = document.getElementById('close-btn');
+    const fullVideo = document.getElementById('full-video');
+    const modal = document.getElementById('myModal');
 
-    let frameIndex = 1;
-    let failedAttempts = 0;
-    let seconds_to_wait = 5; // tiempo maximo de espera en segundos cuando no recibe respuesta positiva
-    const retryInterval = 100; // tiempo en milisegundos entre cada intento de carga de frame
-    const maxFailedAttempts = seconds_to_wait * 1000 / retryInterval; // maximo de intentos fallidos permitidos
-
-    function actualizarFrame() {
-        try {
-            const filename = `frame_${String(frameIndex).padStart(6, '0')}.jpg`;
-            const frameURL = `/frames/${removeFileExtension(this.filename)}/${filename}?` + Date.now();
-            const testImg = new Image();
-
-            testImg.onload = () => {
-                if(frameIndex <= 1) {
-                    initInfo.style.display = 'none';
-                    imgProcessed.style.display = 'block';
-                }
-                imgProcessed.src = frameURL;
-                frameIndex++;
-                failedAttempts = 0; // reiniciar fallos si se carga exitosamente
-                setTimeout(actualizarFrame, retryInterval);
-            };
-
-            testImg.onerror = () => {
-                if (!isProcessing) failedAttempts++;
-                if (failedAttempts < maxFailedAttempts) {
-                    setTimeout(actualizarFrame, retryInterval);
-                } else {
-                    console.log(`Detenido: no se encontraron nuevos frames en ${seconds_to_wait} segundos.`);
-                    failedAttempts = 0; // reiniciar fallos para el siguiente ciclo
-                }
-            };
-
-            testImg.src = frameURL;
-        } catch (error) {
-            // do nothing
+    uploadForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!videoFile.files[0]) {
+            showToast("Primero seleccione un archivo de video para continuar", "info");
+            return;
         }
-    }
 
-    function removeFileExtension(filename) {
-        return filename.substring(0, filename.lastIndexOf(".")) || filename;
+        const formData = new FormData();
+        formData.append('video', videoFile.files[0]);
+
+        fetch('http://localhost:5000/save-video', {
+            method: 'POST',
+            body: formData
+        })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) {
+                    throw data;
+                }
+                goToDetection(data.filename)
+                ddMenuButton.disabled = true;
+                uploadBtn.disabled = true;
+                videoFile.disabled = true;
+                showToast("Procesando video", "info");
+            })
+            .catch(err => {
+                if (err.message && err.message.includes('existe')) {
+                    goToDetection(err.filename);
+                    ddMenuButton.disabled = true;
+                    uploadBtn.disabled = true;
+                    videoFile.disabled = true;
+                    showToast("Procesando video", "info");
+                } else {
+                    showToast("Error al procesar el video", "error");
+                }
+            });
+    })
+
+    function goToDetection(filename) {
+        init = false;
+        const source = new EventSource(`/stream_frames/${filename}/${framesSkipToAnalyze}`);
+
+        source.onmessage = function (event) {
+            if (event.data === "EOF") {
+                source.close();
+                showToast("Video procesado correctamente", "success");
+                fetch('/detecciones')
+                    .then(res => res.json())
+                    .then(data => {
+                        progressContainer.style.display = 'none';
+                        detecciones = data;
+                        // console.log("Detecciones:", data)
+                    });
+            } else {
+                if (event.data && !init) {
+                    videoPreview.playbackRate = 0.5; // 0.5x (lento) - 1.0x (normal) - 1.5x (rapido) - 2.0x (muy rapido)
+                    reuploadBtn.style.display = 'inline-block';
+                    progressContainer.style.display = 'block';
+                    imgProcessed.style.display = 'block';
+                    initInfo.style.display = 'none';
+                    videoPreview.play();
+                    init = true;
+                }
+                imgProcessed.src = 'data:image/jpeg;base64,' + event.data;
+            }
+        }
     }
 
     videoFile.addEventListener("change", function (event) {
         const file = event.target.files[0];
         if (file) {
+            loadVideoInfo.style.display = 'none';
+            videoPreview.style.display = 'block';
             videoPreview.src = URL.createObjectURL(file);
             videoPreview.load();
 
-            videoContainer.style.display = 'flex';
             filename = file.name;
         }
-    });
-
-    uploadForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-
-        //initInfo.style.display = 'none';
-        //imgProcessed.style.display = 'block';
-        process_video();
     });
 
     reuploadBtn.addEventListener('click', function () {
@@ -88,18 +112,18 @@ document.addEventListener('DOMContentLoaded', function () {
     ddItems.forEach(item => {
         item.addEventListener('click', function (e) {
             e.preventDefault(); // Previene el salto por el href="#"
-            
+
             let selectedText = this.textContent.trim();
-            if(!selectedText.includes('Sin saltos')) {
+            if (!selectedText.includes('Sin saltos')) {
                 framesSkipToAnalyze = parseInt(selectedText.match(/\d+/)[0]);
-                if(selectedText.includes("defecto")) selectedText = selectedText.replace('(Por defecto)', '');
+                if (selectedText.includes("defecto")) selectedText = selectedText.replace('(Por defecto)', '');
                 ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> Analizar cada: ${selectedText} `;
             } else {
                 framesSkipToAnalyze = 0;
                 ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> ${selectedText} `;
             }
 
-            if(framesSkipToAnalyze < 3) {
+            if (framesSkipToAnalyze < 3) {
                 labelWarning.style.display = 'block';
             } else {
                 labelWarning.style.display = 'none';
@@ -107,112 +131,46 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    function process_video() {
-        if (!videoFile.files[0]) {
-            alert('Por favor seleccione un archivo de video');
+    viewResultsBtn.addEventListener('click', function () {
+        if (!detecciones.length) {
+            showToast("No hay resultados para mostrar", "info");
             return;
         }
-        ddMenuButton.disabled = true;
-        uploadBtn.disabled = true;
-        videoFile.disabled = true;
-        showToast("Procesando video", "info");
+        setProcessedVideo();
+        modal.style.display = "block";
+    });
 
-        frameIndex = 1; // Reiniciar el índice del frame
-        isProcessing = true;
-        actualizarFrame();
-        videoPreview.playbackRate = 0.5; // 0.5x (lento) - 1.0x (normal) - 1.5x (rapido) - 2.0x (muy rapido)
-        videoPreview.play();
+    closeModalBtn.addEventListener('click', function () {
+        closeModal()
+    });
 
-        const formData = new FormData();
-        formData.append('video', videoFile.files[0]);
+    document.addEventListener('keyup', function (event) {
+        if (event.key === 'Escape' && modal.style.display === 'block') {
+            closeModal()
+        }
+    });
 
-        // Mostrar progreso y desactivar botón
-        uploadBtn.disabled = true;
-        progressContainer.style.display = 'block';
-
-        // Enviar solicitud AJAX
-        fetch(`/new-upload/${framesSkipToAnalyze}`, {
-            method: 'POST',
-            body: formData
-        }).then(response => {
-            if (!response.ok) {
-                throw new Error('Error en el servidor');
-            }
-
-            showToast("Video procesado correctamente", "success");
-            reuploadBtn.style.display = 'inline-block';
-            isProcessing = false;
-            return response.json();
-        }).then(data => {
-            // Procesar respuesta
-            progressContainer.style.display = 'none';
-
-            // Mostrar detecciones
-            //displayDetections(data.detections);
-            //resultsContainer.style.display = 'block';
-        }).catch(error => {
-            progressContainer.style.display = 'none';
-            reuploadBtn.style.display = 'inline-block';
-            showToast(error.message, "error");
-            isProcessing = false;
-        });
+    function closeModal() {
+        modal.style.display = "none";
     }
 
-    function displayDetections(detections) {
-        // Limpiar lista anterior
-        timestampsList.innerHTML = '';
-
-        if (detections.length === 0) {
-            timestampsList.innerHTML = '<p class="text-center">No se detectaron comportamientos sospechosos.</p>';
-            return;
-        }
-
-        // Mostrar cada detección
-        detections.forEach((detection, index) => {
-            const item = document.createElement('div');
-            item.className = 'timestamp-item';
-            item.dataset.time = detection.timestamp;
-
-            // Formatear tiempo (segundos a MM:SS)
-            const minutes = Math.floor(detection.timestamp / 60);
-            const seconds = Math.floor(detection.timestamp % 60);
-            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-            // Crear HTML para comportamientos
-            let behaviorsHTML = '';
-            detection.behaviors.forEach(behavior => {
-                let label = '';
-                let className = '';
-
-                switch (behavior) {
-                    case 'excessive_gaze':
-                        label = 'Mirada excesiva';
-                        className = 'excessive-gaze';
-                        break;
-                    case 'hidden_hands':
-                        label = 'Manos ocultas';
-                        className = 'hidden-hands';
-                        break;
-                    case 'erratic_movements':
-                        label = 'Movimientos erráticos';
-                        className = 'erratic-movements';
-                        break;
+    function setProcessedVideo() {
+        fetch(`http://localhost:5000/processed-video/${filename}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Video no encontrado");
                 }
-
-                behaviorsHTML += `<span class="behavior-tag ${className}">${label}</span>`;
+                return response.blob();
+            })
+            .then(blob => {
+                const videoUrl = URL.createObjectURL(blob); // crear URL temporal
+                fullVideo.src = videoUrl;
+                fullVideo.load();
+                //fullVideo.play();
+            })
+            .catch(error => {
+                console.error("Error al cargar el video:", error);
+                showToast("Error al cargar el video procesado", "error");
             });
-
-            item.innerHTML = `
-                        <div><strong>${formattedTime}</strong> - ${behaviorsHTML}</div>
-                    `;
-
-            // Agregar evento click para saltar al tiempo del video
-            item.addEventListener('click', function () {
-                processedVideo.currentTime = detection.timestamp;
-                processedVideo.play();
-            });
-
-            timestampsList.appendChild(item);
-        });
     }
 });
