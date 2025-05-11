@@ -1,6 +1,7 @@
 var framesSkipToAnalyze = 3; // por defecto
 var isProcessing = false;
-var detecciones = [];
+var detecciones = ['xd'];
+var filename = '';
 
 document.addEventListener('DOMContentLoaded', function () {
     const uploadForm = document.getElementById('upload-form');
@@ -20,6 +21,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const labelWarning = document.getElementById('label-warning');
     const loadVideoInfo = document.getElementById('load-video-info');
     const viewResultsBtn = document.getElementById('view-results');
+    const closeModalBtn = document.getElementById('close-btn');
+    const fullVideo = document.getElementById('full-video');
+    const modal = document.getElementById('myModal');
 
     uploadForm.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -96,6 +100,8 @@ document.addEventListener('DOMContentLoaded', function () {
             videoPreview.style.display = 'block';
             videoPreview.src = URL.createObjectURL(file);
             videoPreview.load();
+
+            filename = file.name;
         }
     });
 
@@ -126,9 +132,41 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     viewResultsBtn.addEventListener('click', function () {
-        if(!detecciones.length) {
+        if (!detecciones.length) {
             showToast("No hay resultados para mostrar", "info");
             return;
         }
+        setProcessedVideo();
+        modal.style.display = "block";
     });
+
+    closeModalBtn.addEventListener('click', function () {
+        modal.style.display = "none";
+    });
+
+    document.addEventListener('keyup', function (event) {
+        if (event.key === 'Escape' && modal.style.display === 'block') {
+            modal.style.display = "none";
+        }
+    });
+
+    function setProcessedVideo() {
+        fetch(`http://localhost:5000/video/${filename}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Video no encontrado");
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const videoUrl = URL.createObjectURL(blob); // crear URL temporal
+                fullVideo.src = videoUrl;
+                fullVideo.load();
+                //fullVideo.play();
+            })
+            .catch(error => {
+                console.error("Error al cargar el video:", error);
+                showToast("Error al cargar el video procesado", "error");
+            });
+    }
 });

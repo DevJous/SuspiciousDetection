@@ -115,14 +115,25 @@
             </div>
         </div>
     </div>
-
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <span class="close"><i id="close-btn" class="fa-solid fa-times"></i></span>
+            <div class="modal-container">
+                <div class="d-flex flex-column justify-content-center align-items-center">
+                    <h4>Comportamientos Sospechosos Detectados</h4>
+                    <video id="full-video" playsinline muted controls></video>
+                </div>
+                <label class="separator w-100"></label>
+            </div>
+        </div>
+    </div>
 
     <!-- <div id="results-container" class="card p-4 mt-4">
             <h4>Detecciones</h4>
             <p>Haga clic en un timestamp para saltar a ese momento en el video:</p>
             <div id="timestamps-list" class="list-group"></div>
         </div> -->
-    </div>
+
     {% endblock %}
     {% block scripts %}
     <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"

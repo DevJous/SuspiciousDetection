@@ -29,5 +29,18 @@ def get_temp_route(child=None):
     else:
         return os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "temp", child)) if child else os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "temp"))
     
+def get_processed_route(child=None):
+    if platform.system() == 'Windows':
+        import winreg
+        try:
+            reg_key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+            desktop_path, _ = winreg.QueryValueEx(reg_key, "Desktop")
+            winreg.CloseKey(reg_key)
+            return os.path.join(desktop_path, "SospiciousDetection", "processeds", child) if child else os.path.join(desktop_path, "SospiciousDetection", "processeds")
+        except:
+            return os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "processeds", child) if child else os.path.join(os.environ["USERPROFILE"], "Desktop", "SospiciousDetection", "processeds")
+    else:
+        return os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "processeds", child)) if child else os.path.abspath(os.path.join(os.path.expanduser("~"), "..", "home", "SospiciousDetection", "processeds"))
+    
 def format_number(num, length=6):
     return str(num).zfill(length)

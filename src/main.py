@@ -3,7 +3,7 @@ from genericpath import exists
 import io
 #import uuid
 
-from flask import Flask, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response, send_from_directory
+from flask import Flask, abort, render_template, request, jsonify, json, redirect, url_for, session, send_file, Response, send_from_directory
 import pyodbc
 import os
 import cv2 as cv
@@ -48,7 +48,7 @@ from model.PoseModule import poseDetector
 from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
 from model.BehaviorDetector import BehaviorDetector
-from Resources.Helper import get_work_path, get_temp_route
+from Resources.Helper import get_work_path, get_processed_route, get_temp_route
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -1128,11 +1128,11 @@ def stream_frames(filename, frame_skip):
     filepath = os.path.join(file_path, filename)
 
     # Verificar si el video procesado ya existe y lo elimina
-    if os.path.exists(os.path.join(file_path, 'procesados', 'processed_' + filename)):
-        os.remove(os.path.join(file_path,'procesados', 'processed_' + filename))
+    if os.path.exists(os.path.join(file_path, 'processeds', 'processed_' + filename)):
+        os.remove(os.path.join(file_path,'processeds', 'processed_' + filename))
 
     # Procesar el video
-    output_path = os.path.join(file_path, 'procesados', 'processed_' + filename)
+    output_path = os.path.join(file_path, 'processeds', 'processed_' + filename)
 
     def generar():
         global detecciones_guardadas
@@ -1152,6 +1152,32 @@ def stream_frames(filename, frame_skip):
 @app.route('/detecciones')
 def get_detecciones():
     return jsonify(detecciones_guardadas)
+
+def generate_video(filename):
+    filepath = os.path.join(get_processed_route(), filename)
+    print ('filepath:', filepath)
+    with open(filepath, "rb") as video:
+        while chunk := video.read(1024):
+            yield chunk
+
+@app.route('/video/<filename>')
+def processed_file(filename):
+    return Response(generate_video(filename), mimetype='video/mp4')
+
+@app.route('/video2/<filename>')
+def get_video2(filename):
+    return send_from_directory(get_processed_route(), filename)
+
+@app.route('/video3/<filename>')
+def get_video3(filename):
+    # Ruta base donde están tus videos
+    video_path = os.path.join(get_processed_route(), filename)
+
+    # Verifica si el archivo existe
+    if os.path.exists(video_path):
+        return send_file(video_path, mimetype='video/mp4')
+    else:
+        abort(404, description="Video no encontrado")
 
 # endregion
 

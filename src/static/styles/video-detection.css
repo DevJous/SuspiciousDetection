@@ -161,3 +161,66 @@
         display: none;
     }
 }
+
+/* MODAL ESTILOS */
+
+/* Fondo del modal */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Animación de entrada */
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Contenido del modal */
+.modal-content {
+    background-color: white;
+    margin: 10% auto;
+    padding: 20px;
+    border-radius: 10px;
+    width: 75%;
+    max-width: 900px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    animation: modalFadeIn 0.3s ease;
+}
+
+.modal-content h4 {
+    color: #428ec1;
+}
+
+/* Botón cerrar */
+.close {
+    /* float: right; */
+    display: flex;
+    justify-content: flex-end;
+    font-size: 24px;
+    font-weight: bold;
+    color: #888;
+}
+
+#close-btn:hover {
+    color: black;
+}
+
+#close-btn {
+    cursor: pointer;
+    font-size: large;
+}
+
