@@ -1123,17 +1123,14 @@ def save_video():
 
 @app.route('/stream_frames/<filename>/<frame_skip>')
 def stream_frames(filename, frame_skip):
-    
     file_path = get_work_path()
-    print('filename:', filename)
     filepath = os.path.join(file_path, filename)
 
-    # Verificar si el video procesado ya existe y lo elimina
     if os.path.exists(os.path.join(file_path, 'Processeds', 'Processed' + filename)):
         os.remove(os.path.join(file_path,'Processeds', 'Processed' + filename))
 
     # Procesar el video
-    output_path = os.path.join(file_path, 'Processeds', 'Processed' + filename)
+    output_path = os.path.join(file_path, 'Processeds', 'Processed' + os.path.splitext(filename)[0] + '.webm')
 
     def generar():
         global detecciones_guardadas
@@ -1141,14 +1138,19 @@ def stream_frames(filename, frame_skip):
         
         for result in detector.process_video(filepath, output_path):
             if isinstance(result, list):  # Si es la lista de detecciones
-                # Guardar detecciones para la ruta /detecciones
                 detecciones_guardadas = result
-                # Enviamos una señal de fin con la palabra EOF
                 yield "data: EOF\n\n"
-            else:  # Si es un frame en base64 (string)
-                yield f"data: {result}\n\n"
+            else:  # Si es un frame en base64 (string) o un diccionario con frame+detecciones
+                if isinstance(result, dict):
+                    import json
+                    json_data = json.dumps(result)
+                    yield f"data: {json_data}\n\n"
+                else:
+                    # Si es solo un string (frame en base64)
+                    yield f"data: {result}\n\n"
 
     return Response(generar(), mimetype='text/event-stream')
+
 
 @app.route('/detecciones')
 def get_detecciones():
@@ -1158,7 +1160,7 @@ def get_detecciones():
 def get_video(filename):
     video_path = os.path.join(get_processed_route(), "Processed" + filename)
     if os.path.exists(video_path):
-        return send_file(video_path, mimetype='video/mp4')
+        return send_file(video_path, mimetype='video/webm')
     else:
         abort(404, description="Video no encontrado")
         

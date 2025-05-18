@@ -1,3 +1,4 @@
+import json
 from multiprocessing import process
 import cv2
 import os
@@ -9,6 +10,8 @@ import math
 from collections import defaultdict, deque
 from Resources.Helper import get_temp_route, format_number
 import base64
+import platform
+
 
 
 class BehaviorDetector:
@@ -350,7 +353,10 @@ class BehaviorDetector:
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
             # Configurar video de salida
-            fourcc = cv2.VideoWriter_fourcc(*'avc1')
+            # fourcc = cv2.VideoWriter_fourcc(*'avc1') --> Descomentar esto para trabajar con H264 y videos mp4 compatibles con navegadores
+            # el .dll del codec H264 'avc1' ya esta en el proyecto por lo que en windows no es necesario instalar nada (solo cuidado con linux)  
+
+            fourcc = cv2.VideoWriter_fourcc(*'VP90') # VP90 es un codec de video libre y abierto, utilizado por WebM y compatible con navegadores
             out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
             frame_idx = 0
@@ -534,14 +540,21 @@ class BehaviorDetector:
                 
                 _, buffer = cv2.imencode('.jpg', output_frame)
                 jpg_b64 = base64.b64encode(buffer).decode('utf-8')
-                yield jpg_b64
+                
+                frame_data = {
+                    'frame': jpg_b64,
+                    'progress': f"{frame_idx / total_frames * 100:.1f}",
+                    'detections': list(detections[-1]['behaviors']) if detections else None
+                }
+
+                yield frame_data
 
                 # Escribir frame procesado al video de salida
                 out.write(output_frame)
 
                 # Mostrar progreso cada 100 frames
-                if frame_idx % 100 == 0:
-                    print(f"Procesado {frame_idx}/{total_frames} frames ({frame_idx / total_frames * 100:.1f}%)")
+                # if frame_idx % 100 == 0:
+                #     print(f"Procesado {frame_idx}/{total_frames} frames ({frame_idx / total_frames * 100:.1f}%)")
 
             yield detections
         finally:
