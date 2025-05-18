@@ -76,11 +76,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     .then(data => {
                         progressContainer.style.display = 'none';
                         detecciones = data;
-                        // console.log("Detecciones:", data)
                     });
             } else {
+                const data = JSON.parse(event.data);
+                console.log(data);
                 if (event.data && !init) {
-                    videoPreview.playbackRate = 0.5; // 0.5x (lento) - 1.0x (normal) - 1.5x (rapido) - 2.0x (muy rapido)
+                    //videoPreview.playbackRate = 0.5; // 0.5x (lento) - 1.0x (normal) - 1.5x (rapido) - 2.0x (muy rapido)
                     reuploadBtn.style.display = 'inline-block';
                     progressContainer.style.display = 'block';
                     imgProcessed.style.display = 'block';
@@ -88,7 +89,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     videoPreview.play();
                     init = true;
                 }
-                imgProcessed.src = 'data:image/jpeg;base64,' + event.data;
+                // imgProcessed.src = 'data:image/jpeg;base64,' + event.data;
+                imgProcessed.src = 'data:image/jpeg;base64,' + data.frame;
+                //if(data.detections) console.log("Detecciones:", data.detections);
             }
         }
     }
