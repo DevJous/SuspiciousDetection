@@ -1,6 +1,8 @@
+var deteccionesTiempoReal = [];
 var framesSkipToAnalyze = 3; // por defecto
 var isProcessing = false;
-var detecciones = ['xd'];
+var selDimension = '2D';
+var detecciones = [];
 var filename = '';
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -10,20 +12,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const reuploadBtn = document.getElementById('reupload-btn');
     const initInfo = document.getElementById('init-info');
     const progressContainer = document.getElementById('progress-container');
-    const videoContainer = document.getElementById('video-container');
-    // const resultsContainer = document.getElementById('results-container');
-    // const processedVideo = document.getElementById('processed-video');
-    // const timestampsList = document.getElementById('timestamps-list');
+    const processedVideo = document.getElementById('full-video');
+    const timestampsList = document.getElementById('timestamps-list');
     const imgProcessed = document.getElementById('img-processed-video');
     const videoPreview = document.getElementById("loaded-video");
-    const ddMenuButton = document.getElementById("dropdownMenuButton");
-    const ddItems = document.querySelectorAll('.dropdown-item');
+    const skipframes_ddMenuButton = document.getElementById("dropdown1");
+    const skipframes_ddItems = document.querySelectorAll('#dd1 .dropdown-item');
+    const dimension_ddMenuButton = document.getElementById("dropdown2");
+    const dimension_ddItems = document.querySelectorAll('#dd2 .dropdown-item');
     const labelWarning = document.getElementById('label-warning');
     const loadVideoInfo = document.getElementById('load-video-info');
     const viewResultsBtn = document.getElementById('view-results');
     const closeModalBtn = document.getElementById('close-btn');
     const fullVideo = document.getElementById('full-video');
+    const progressBar = document.getElementsByClassName('progress')[0];
     const modal = document.getElementById('myModal');
+    const realtime_count = document.getElementById('realtime-results-count');
+    const realtime_list = document.getElementById('realtime-list');
+    const policeImage = document.getElementById('police-image');
+    const irSubContainer = document.getElementById('ir-info-subcontainer');
+    const foundResults = document.getElementById('found-results');
+    const realtimeSpinner = document.getElementById('realtime-spinner');
 
     uploadForm.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -35,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const formData = new FormData();
         formData.append('video', videoFile.files[0]);
 
-        fetch('http://localhost:5000/save-video', {
+        fetch('/save-video', {
             method: 'POST',
             body: formData
         })
@@ -45,17 +54,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     throw data;
                 }
                 goToDetection(data.filename)
-                ddMenuButton.disabled = true;
+                skipframes_ddMenuButton.disabled = true;
+                dimension_ddMenuButton.disabled = true;
                 uploadBtn.disabled = true;
                 videoFile.disabled = true;
+                irSubContainer.style.display = 'none';
+                foundResults.style.display = 'block';
                 showToast("Procesando video", "info");
             })
             .catch(err => {
                 if (err.message && err.message.includes('existe')) {
                     goToDetection(err.filename);
-                    ddMenuButton.disabled = true;
+                    skipframes_ddMenuButton.disabled = true;
+                    dimension_ddMenuButton.disabled = true;
                     uploadBtn.disabled = true;
                     videoFile.disabled = true;
+                    irSubContainer.style.display = 'none';
+                    foundResults.style.display = 'block';
                     showToast("Procesando video", "info");
                 } else {
                     showToast("Error al procesar el video", "error");
@@ -65,23 +80,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function goToDetection(filename) {
         init = false;
-        const source = new EventSource(`/stream_frames/${filename}/${framesSkipToAnalyze}`);
+        const source = new EventSource(`/stream_frames/${filename}/${framesSkipToAnalyze}/${selDimension}`);
 
         source.onmessage = function (event) {
             if (event.data === "EOF") {
                 source.close();
+                realtimeSpinner.style.display = 'none';
                 showToast("Video procesado correctamente", "success");
                 fetch('/detecciones')
                     .then(res => res.json())
                     .then(data => {
-                        progressContainer.style.display = 'none';
+                        //progressContainer.style.display = 'none';
                         detecciones = data;
+                        displayDetections();
                     });
             } else {
                 const data = JSON.parse(event.data);
-                console.log(data);
                 if (event.data && !init) {
-                    //videoPreview.playbackRate = 0.5; // 0.5x (lento) - 1.0x (normal) - 1.5x (rapido) - 2.0x (muy rapido)
                     reuploadBtn.style.display = 'inline-block';
                     progressContainer.style.display = 'block';
                     imgProcessed.style.display = 'block';
@@ -89,9 +104,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     videoPreview.play();
                     init = true;
                 }
-                // imgProcessed.src = 'data:image/jpeg;base64,' + event.data;
+                updateProgressBar(data.progress);
                 imgProcessed.src = 'data:image/jpeg;base64,' + data.frame;
-                //if(data.detections) console.log("Detecciones:", data.detections);
+                if (data.detections) updateRealTimeDetections(data.detections);
             }
         }
     }
@@ -112,18 +127,18 @@ document.addEventListener('DOMContentLoaded', function () {
         location.reload();
     });
 
-    ddItems.forEach(item => {
+    skipframes_ddItems.forEach(item => {
         item.addEventListener('click', function (e) {
-            e.preventDefault(); // Previene el salto por el href="#"
+            e.preventDefault();
 
             let selectedText = this.textContent.trim();
             if (!selectedText.includes('Sin saltos')) {
                 framesSkipToAnalyze = parseInt(selectedText.match(/\d+/)[0]);
-                if (selectedText.includes("defecto")) selectedText = selectedText.replace('(Por defecto)', '');
-                ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> Analizar cada: ${selectedText} `;
+                if (selectedText.includes("defecto")) selectedText = selectedText.replace(' (Por defecto)', '');
+                skipframes_ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> Analizar cada: ${selectedText}&nbsp;`;
             } else {
                 framesSkipToAnalyze = 0;
-                ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> ${selectedText} `;
+                skipframes_ddMenuButton.innerHTML = `<i class="fa-solid fa-sliders"></i> ${selectedText}&nbsp;`;
             }
 
             if (framesSkipToAnalyze < 3) {
@@ -131,6 +146,17 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 labelWarning.style.display = 'none';
             }
+
+        });
+    });
+
+    dimension_ddItems.forEach(item => {
+        item.addEventListener('click', function (e) {
+            e.preventDefault();
+
+            let selectedText = this.textContent.trim();
+            selDimension = selectedText;
+            dimension_ddMenuButton.innerHTML = `<i class="fa-solid fa-male"></i> Estimación postural: ${selectedText}&nbsp;`;
         });
     });
 
@@ -158,7 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setProcessedVideo() {
-        fetch(`http://localhost:5000/processed-video/${filename}`)
+        fetch(`/processed-video/${filename.replace('.mp4', '.webm')}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error("Video no encontrado");
@@ -175,5 +201,88 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.error("Error al cargar el video:", error);
                 showToast("Error al cargar el video procesado", "error");
             });
+    }
+
+    function updateProgressBar(percentage) {
+        progressBar.innerHTML = `<div class="progress-bar progress-bar-striped ${percentage >= 100 ? 'bg-success' : ''}" role="progressbar"
+            style="width: ${percentage}%;" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100">${percentage}%</div>`;
+    }
+
+    function displayDetections() {
+        // Limpiar lista anterior
+        timestampsList.innerHTML = '';
+
+        if (detecciones.length === 0) {
+            timestampsList.innerHTML = '<p class="text-center">No se detectaron comportamientos sospechosos.</p>';
+            return;
+        }
+
+        detecciones.forEach((deteccion, index) => {
+            const item = document.createElement('div');
+            item.className = 'timestamp-item';
+            item.dataset.time = deteccion.timestamp;
+
+            const minutes = Math.floor(deteccion.timestamp / 60);
+            const seconds = Math.floor(deteccion.timestamp % 60);
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+            let behaviorsHTML = '';
+            deteccion.behaviors.forEach(behavior => {
+                let label = '';
+                let className = '';
+
+                switch (behavior) {
+                    case 'excessive_gaze':
+                        label = 'Mirada excesiva';
+                        className = 'excessive-gaze';
+                        break;
+                    case 'hidden_hands':
+                        label = 'Manos ocultas';
+                        className = 'hidden-hands';
+                        break;
+                    case 'camera_approach':
+                        label = 'Acercamiento indebido';
+                        className = 'camera-approach';
+                        break;
+                }
+
+                behaviorsHTML += `<span class="behavior-tag ${className}">${label}</span>`;
+            });
+
+            item.innerHTML = `
+                        <div><strong>${formattedTime}</strong> - ${behaviorsHTML}</div>
+                    `;
+
+            // Agregar evento click para saltar al tiempo del video
+            item.addEventListener('click', function () {
+                processedVideo.currentTime = deteccion.timestamp;
+                //processedVideo.play();
+            });
+
+            timestampsList.appendChild(item);
+        });
+    }
+
+    function updateRealTimeDetections(detections) {
+        if (deteccionesTiempoReal.length >= 3) return;
+        deteccionesTiempoReal = [...new Set([...deteccionesTiempoReal, ...detections])]
+
+        if (!policeImage.src.includes('angry')) policeImage.src = '/static/assets/angry_police.jpg';
+        if (deteccionesTiempoReal.length > parseInt(realtime_count.innerText)) {
+            realtime_count.innerText = deteccionesTiempoReal.length;
+            switch (deteccionesTiempoReal[deteccionesTiempoReal.length - 1]) {
+                case 'excessive_gaze':
+                    realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-eye"></i>Mirada excesiva</label>`;
+                    break;
+                case 'hidden_hands':
+                    realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-hand-paper"></i>Manos ocultas</label>`;
+                    break;
+                case 'camera_approach':
+                    realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-camera"></i>Acercamiento indebido</label>`;
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 });
