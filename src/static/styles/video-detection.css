@@ -49,7 +49,7 @@
 
 #results-container {
     margin-top: 20px;
-    display: none;
+    /* display: none; */
 }
 
 #img-processed-video {
@@ -103,7 +103,7 @@
     background-color: #fd7e14;
 }
 
-.erratic-movements {
+.camera-approach {
     background-color: #6f42c1;
 }
 
@@ -134,6 +134,11 @@
     color: #2470a3;
 }
 
+#timestamps-list {
+    height: 300px;
+    overflow: auto;
+}
+
 .ir-info {
     display: flex;
     align-items: center;
@@ -160,6 +165,10 @@
     .separator:last-child {
         display: none;
     }
+}
+
+#found-results {
+    display: none;
 }
 
 /* MODAL ESTILOS */
@@ -192,7 +201,7 @@
 /* Contenido del modal */
 .modal-content {
     background-color: white;
-    margin: 10% auto;
+    margin: 3% auto;
     padding: 20px;
     border-radius: 10px;
     width: 75%;
@@ -223,4 +232,5 @@
     cursor: pointer;
     font-size: large;
 }
+
 
