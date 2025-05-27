@@ -1,4 +1,4 @@
-from multiprocessing import process
+from multiprocessing import Process
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -6,15 +6,15 @@ import math
 from collections import defaultdict, deque
 from Resources.Helper import get_temp_route, format_number
 import base64
+import uuid
 
-class BehaviorDetector:
+class BehaviorDetector3D:
     def __init__(self, frame_skip=3):
-        # Inicializar MediaPipe Pose y Hands
+        # Inicializar MediaPipe Pose, Hands y FaceMesh
         self.mp_pose = mp.solutions.pose
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_face_mesh = mp.solutions.face_mesh
-        # Nuevo parámetro para configurar cuántos frames saltar
         self.frame_skip = frame_skip
 
         self.pose = self.mp_pose.Pose(
@@ -31,7 +31,6 @@ class BehaviorDetector:
             min_tracking_confidence=0.5
         )
 
-        # Agregar FaceMesh para detección facial y de mirada más precisa
         self.face_mesh = mp.solutions.face_mesh.FaceMesh(
             static_image_mode=False,
             max_num_faces=1,
@@ -39,58 +38,47 @@ class BehaviorDetector:
             min_tracking_confidence=0.5
         )
 
-        # Variables para seguimiento de comportamientos (una sola persona)
+        # Variables para seguimiento de comportamientos
         self.person_data = {
-            'positions': deque(maxlen=30),  # Posiciones recientes (últimos 30 frames)
-            'hidden_hands_frames': 0,  # Contador de frames con manos ocultas
-            'hidden_hands_duration': 0,  # Duración de manos ocultas (en segundos)
-            'hidden_hands_position': None,  # Posición donde se detectaron manos ocultas
-            'suspicious_start_times': {},  # Tiempo de inicio de comportamientos sospechosos
-            'alerted': set(),  # Comportamientos para los que ya se ha alertado
-
-            # Variables para mirada excesiva
-            'gaze_directions': deque(maxlen=60),  # Historial de direcciones de mirada (2 segundos @ 30fps)
-            'gaze_change_counter': 0,  # Contador de cambios significativos de mirada
-            'last_significant_gaze_time': 0,  # Timestamp del último cambio significativo
-
-            # Variables para detección de acercamiento a la cámara
-            'proximity_distances': deque(maxlen=30),  # Historial de distancias a la cámara
-            'approach_detected_frames': 0,  # Frames consecutivos con acercamiento detectado
-            'initial_distances': None,  # Distancias iniciales para referencia
-            'reference_established': False  # Flag para indicar si ya se estableció una referencia
+            'positions': deque(maxlen=30),  # Posiciones 3D recientes (últimos 30 frames)
+            'hidden_hands_frames': 0,
+            'hidden_hands_duration': 0,
+            'hidden_hands_position': None,
+            'suspicious_start_times': {},
+            'alerted': set(),
+            'gaze_directions': deque(maxlen=60),  # Historial de direcciones de mirada en 3D
+            'gaze_change_counter': 0,
+            'last_significant_gaze_time': 0,
+            'proximity_distances': deque(maxlen=30),  # Historial de distancias 3D
+            'approach_detected_frames': 0,
+            'initial_distances': None,
+            'reference_established': False
         }
 
-        # Umbrales para detección
-        self.hidden_hands_frame_threshold = 25  # Frames consecutivos con manos ocultas
-        self.hidden_hands_time_threshold = 3.0  # Tiempo mínimo con manos ocultas (segundos)
-
-        # Umbrales para detección de mirada excesiva
-        self.gaze_angle_threshold = 0.3  # Cambio mínimo en radianes (~17 grados) para considerar cambio de mirada
-        self.gaze_changes_threshold = 8  # Número de cambios en ventana de tiempo para considerar mirada excesiva
-        self.gaze_time_window = 5.0  # Ventana de tiempo para evaluar cambios de mirada (segundos)
-
-        # Umbrales para detección de acercamiento a la cámara
-        self.proximity_threshold = 0.25  # Umbral de cambio relativo en tamaño para considerar acercamiento
-        self.approach_frames_threshold = 15  # Frames consecutivos con acercamiento para alertar
-        self.min_detection_frames = 10  # Frames mínimos para establecer una referencia estable
-
-        # Factor de confianza para reducir falsos positivos
+        # Umbrales ajustados para 3D
+        self.hidden_hands_frame_threshold = 25
+        self.hidden_hands_time_threshold = 3.0
+        self.gaze_angle_threshold = 0.3  # ~17 grados
+        self.gaze_changes_threshold = 8
+        self.gaze_time_window = 5.0
+        self.proximity_threshold = 0.25
+        self.approach_frames_threshold = 15
+        self.min_detection_frames = 10
         self.confidence_threshold = 0.7
 
-        # Puntos de referencia importantes para el seguimiento facial
-        # Índices aproximados en el modelo de 468 puntos de FaceMesh
+        # Índices para FaceMesh
         self.LEFT_EYE_INDICES = [33, 133, 160, 159, 158, 144, 145, 153]
         self.RIGHT_EYE_INDICES = [362, 263, 386, 385, 384, 374, 373, 390]
-        self.IRIS_INDICES = [468, 469, 470, 471, 472, 473]  # Si están disponibles en el modelo usado
+        self.IRIS_INDICES = [468, 469, 470, 471, 472, 473]
 
     def detect_hand_pockets(self, pose_landmarks, hand_landmarks, frame_shape):
-        """Detecta si las manos están en los bolsillos o detrás de la espalda"""
+        """Detecta si las manos están en bolsillos o detrás de la espalda usando coordenadas 3D"""
         if not pose_landmarks:
             return False
 
         h, w, _ = frame_shape
 
-        # Extraer coordenadas relevantes
+        # Extraer coordenadas 3D
         left_hip = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP]
         right_hip = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP]
         left_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_WRIST]
@@ -98,129 +86,122 @@ class BehaviorDetector:
         left_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER]
         right_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]
 
-        # Calcular punto medio de los hombros para referencia
-        shoulder_mid_x = (left_shoulder.x + right_shoulder.x) / 2
+        # Calcular punto medio de los hombros en 3D
+        shoulder_mid = np.array([
+            (left_shoulder.x + right_shoulder.x) / 2,
+            (left_shoulder.y + right_shoulder.y) / 2,
+            (left_shoulder.z + right_shoulder.z) / 2
+        ])
 
-        # Verificar si hay detecciones de manos
+        # Verificar manos visibles
         visible_hands = set()
         if hand_landmarks:
             for hand_lm in hand_landmarks:
-                # Calcular punto medio de la mano
-                hand_x = sum(lm.x for lm in hand_lm.landmark) / len(hand_lm.landmark)
-
-                # Determinar si es mano izquierda o derecha basado en la posición relativa
-                if hand_x < shoulder_mid_x:
+                # Calcular punto medio de la mano en 3D
+                hand_pos = np.array([
+                    sum(lm.x for lm in hand_lm.landmark) / len(hand_lm.landmark),
+                    sum(lm.y for lm in hand_lm.landmark) / len(hand_lm.landmark),
+                    sum(lm.z for lm in hand_lm.landmark) / len(hand_lm.landmark)
+                ])
+                # Determinar mano izquierda o derecha
+                if hand_pos[0] < shoulder_mid[0]:
                     visible_hands.add('left')
                 else:
                     visible_hands.add('right')
 
-        # Verificar si las muñecas están cerca de las caderas (bolsillos) o detrás
+        # Verificar si las muñecas están cerca de las caderas o detrás en 3D
         hands_in_pockets = False
 
-        # Mano izquierda en bolsillo o detrás
+        # Mano izquierda
         if 'left' not in visible_hands:
-            hip_wrist_distance_left = math.sqrt((left_hip.x - left_wrist.x) ** 2 + (left_hip.y - left_wrist.y) ** 2)
-            behind_back_left = left_wrist.z > left_hip.z + 0.1  # Z mayor significa más atrás
-            if hip_wrist_distance_left < 0.15 or behind_back_left:
+            hip_wrist_vec = np.array([left_hip.x - left_wrist.x, left_hip.y - left_wrist.y, left_hip.z - left_wrist.z])
+            hip_wrist_distance = np.linalg.norm(hip_wrist_vec)
+            behind_back = left_wrist.z > left_hip.z + 0.1
+            if hip_wrist_distance < 0.15 or behind_back:
                 hands_in_pockets = True
 
-        # Mano derecha en bolsillo o detrás
+        # Mano derecha
         if 'right' not in visible_hands:
-            hip_wrist_distance_right = math.sqrt(
-                (right_hip.x - right_wrist.x) ** 2 + (right_hip.y - right_wrist.y) ** 2)
-            behind_back_right = right_wrist.z > right_hip.z + 0.1  # Z mayor significa más atrás
-            if hip_wrist_distance_right < 0.15 or behind_back_right:
+            hip_wrist_vec = np.array([right_hip.x - right_wrist.x, right_hip.y - right_wrist.y, right_hip.z - right_wrist.z])
+            hip_wrist_distance = np.linalg.norm(hip_wrist_vec)
+            behind_back = right_wrist.z > right_hip.z + 0.1
+            if hip_wrist_distance < 0.15 or behind_back:
                 hands_in_pockets = True
 
         return hands_in_pockets
 
     def detect_excessive_gaze(self, face_landmarks, pose_landmarks, frame_shape, current_time):
-        """Detecta si una persona mira excesivamente en diferentes direcciones o a la cámara"""
+        """Detecta mirada excesiva usando vectores 3D"""
         if not face_landmarks and not pose_landmarks:
             return False
 
-        # Si tenemos face_landmarks, usar para detección más precisa
         if face_landmarks:
-            # Calcular dirección de la mirada usando la malla facial
+            # Calcular centros de ojos en 3D
             left_eye_center = np.mean([[face_landmarks.landmark[idx].x,
-                                        face_landmarks.landmark[idx].y]
-                                       for idx in self.LEFT_EYE_INDICES], axis=0)
-
+                                      face_landmarks.landmark[idx].y,
+                                      face_landmarks.landmark[idx].z]
+                                     for idx in self.LEFT_EYE_INDICES], axis=0)
             right_eye_center = np.mean([[face_landmarks.landmark[idx].x,
-                                         face_landmarks.landmark[idx].y]
-                                        for idx in self.RIGHT_EYE_INDICES], axis=0)
-
-            # Punto entre los ojos como referencia
+                                       face_landmarks.landmark[idx].y,
+                                       face_landmarks.landmark[idx].z]
+                                      for idx in self.RIGHT_EYE_INDICES], axis=0)
             eyes_center = np.mean([left_eye_center, right_eye_center], axis=0)
 
-            # Intentar usar iris si está disponible para mayor precisión
-            has_iris_data = len(face_landmarks.landmark) > 468  # Verificar si el modelo tiene puntos de iris
-
+            # Usar iris si está disponible
+            has_iris_data = len(face_landmarks.landmark) > 468
             if has_iris_data:
-                # Calcular centro del iris
-                left_iris = np.mean([[face_landmarks.landmark[idx].x, face_landmarks.landmark[idx].y]
-                                     for idx in self.IRIS_INDICES[:3]], axis=0)
-                right_iris = np.mean([[face_landmarks.landmark[idx].x, face_landmarks.landmark[idx].y]
-                                      for idx in self.IRIS_INDICES[3:]], axis=0)
-
-                # Vector de dirección combinando ambos iris
-                gaze_vector = np.mean([
-                    left_iris - left_eye_center,
-                    right_iris - right_eye_center
-                ], axis=0)
+                left_iris = np.mean([[face_landmarks.landmark[idx].x,
+                                    face_landmarks.landmark[idx].y,
+                                    face_landmarks.landmark[idx].z]
+                                   for idx in self.IRIS_INDICES[:3]], axis=0)
+                right_iris = np.mean([[face_landmarks.landmark[idx].x,
+                                     face_landmarks.landmark[idx].y,
+                                     face_landmarks.landmark[idx].z]
+                                    for idx in self.IRIS_INDICES[3:]], axis=0)
+                gaze_vector = np.mean([left_iris - left_eye_center, right_iris - right_eye_center], axis=0)
             else:
-                # Si no hay datos de iris, usar la posición de la nariz respecto al centro de los ojos
-                nose_tip = np.array([face_landmarks.landmark[4].x, face_landmarks.landmark[4].y])
+                nose_tip = np.array([face_landmarks.landmark[4].x,
+                                   face_landmarks.landmark[4].y,
+                                   face_landmarks.landmark[4].z])
                 gaze_vector = nose_tip - eyes_center
 
-        # Si no hay face_landmarks pero tenemos pose_landmarks, usar estos puntos faciales básicos
         elif pose_landmarks:
-            # Usar landmarks faciales del pose detector
             nose = np.array([pose_landmarks.landmark[self.mp_pose.PoseLandmark.NOSE].x,
-                             pose_landmarks.landmark[self.mp_pose.PoseLandmark.NOSE].y])
-
+                           pose_landmarks.landmark[self.mp_pose.PoseLandmark.NOSE].y,
+                           pose_landmarks.landmark[self.mp_pose.PoseLandmark.NOSE].z])
             left_eye = np.array([pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_EYE].x,
-                                 pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_EYE].y])
-
+                               pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_EYE].y,
+                               pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_EYE].z])
             right_eye = np.array([pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_EYE].x,
-                                  pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_EYE].y])
-
+                                pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_EYE].y,
+                                pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_EYE].z])
             eyes_center = np.mean([left_eye, right_eye], axis=0)
             gaze_vector = nose - eyes_center
 
-        # Normalizar vector
+        # Normalizar vector de mirada
         gaze_magnitude = np.linalg.norm(gaze_vector)
         if gaze_magnitude > 0:
             gaze_vector = gaze_vector / gaze_magnitude
         else:
             return False
 
-        # Guardar dirección de mirada actual
         self.person_data['gaze_directions'].append(gaze_vector)
-
-        # Necesitamos al menos 2 direcciones para comparar
         if len(self.person_data['gaze_directions']) < 2:
             return False
 
-        # Comparar con dirección anterior para detectar cambio significativo
+        # Comparar con dirección anterior
         prev_gaze = self.person_data['gaze_directions'][-2]
         dot_product = np.clip(np.dot(gaze_vector, prev_gaze), -1.0, 1.0)
         angle_change = np.arccos(dot_product)
 
-        # Si el cambio es significativo, incrementar contador
         if angle_change > self.gaze_angle_threshold:
             self.person_data['gaze_change_counter'] += 1
             self.person_data['last_significant_gaze_time'] = current_time
-
-            # Iniciar seguimiento del comportamiento si es el primer cambio detectado
             if 'excessive_gaze' not in self.person_data['suspicious_start_times']:
                 self.person_data['suspicious_start_times']['excessive_gaze'] = current_time
 
-        # Comprobar si se han producido suficientes cambios en la ventana de tiempo
         if 'excessive_gaze' in self.person_data['suspicious_start_times']:
             elapsed_time = current_time - self.person_data['suspicious_start_times']['excessive_gaze']
-
-            # Restablecer contador si ha pasado demasiado tiempo desde el último cambio significativo
             if current_time - self.person_data['last_significant_gaze_time'] > self.gaze_time_window:
                 self.person_data['gaze_change_counter'] = 0
                 del self.person_data['suspicious_start_times']['excessive_gaze']
@@ -228,7 +209,6 @@ class BehaviorDetector:
                     self.person_data['alerted'].remove('excessive_gaze')
                 return False
 
-            # Determinar si hay mirada excesiva basada en la frecuencia de cambios
             if (self.person_data['gaze_change_counter'] >= self.gaze_changes_threshold and
                     elapsed_time <= self.gaze_time_window):
                 return True
@@ -236,11 +216,11 @@ class BehaviorDetector:
         return False
 
     def detect_camera_approach(self, pose_landmarks, frame_shape):
-        """Detecta si una persona se está acercando a la cámara de manera sospechosa"""
+        """Detecta acercamiento a la cámara usando dimensiones 3D"""
         if not pose_landmarks:
             return False
 
-        # Puntos clave para medir el tamaño aparente de la persona
+        # Puntos clave en 3D
         key_points = [
             self.mp_pose.PoseLandmark.LEFT_SHOULDER,
             self.mp_pose.PoseLandmark.RIGHT_SHOULDER,
@@ -249,59 +229,70 @@ class BehaviorDetector:
             self.mp_pose.PoseLandmark.NOSE
         ]
 
-        # Calcular métricas de proximidad
-        shoulder_width = abs(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].x - 
-                            pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].x)
-        hip_width = abs(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].x - 
-                        pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].x)
-        torso_height = abs((pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y + 
-                           pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y) / 2 - 
-                          (pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].y + 
-                           pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].y) / 2)
-        
-        # Calcular tamaño aparente (área del torso)
+        # Calcular dimensiones 3D
+        shoulder_vec = np.array([
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].x - 
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].x,
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y - 
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y,
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].z - 
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].z
+        ])
+        hip_vec = np.array([
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].x - 
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].x,
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].y - 
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].y,
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].z - 
+            pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].z
+        ])
+        torso_height_vec = np.array([
+            (pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].x + 
+             pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].x) / 2 - 
+            (pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].x + 
+             pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].x) / 2,
+            (pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y + 
+             pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y) / 2 - 
+            (pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].y + 
+             pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].y) / 2,
+            (pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER].z + 
+             pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].z) / 2 - 
+            (pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP].z + 
+             pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP].z) / 2
+        ])
+
+        shoulder_width = np.linalg.norm(shoulder_vec)
+        hip_width = np.linalg.norm(hip_vec)
+        torso_height = np.linalg.norm(torso_height_vec)
         apparent_size = (shoulder_width + hip_width) * torso_height
-        
-        # Guardar distancia actual
+
         self.person_data['proximity_distances'].append(apparent_size)
-        
-        # Esperar a tener suficientes frames para establecer una referencia
         if len(self.person_data['proximity_distances']) < self.min_detection_frames:
             return False
-            
-        # Establecer referencia inicial si no se ha hecho aún
+
         if not self.person_data['reference_established']:
-            # Usar el promedio de los primeros N frames como referencia
             initial_distances = list(self.person_data['proximity_distances'])[:self.min_detection_frames]
             self.person_data['initial_distances'] = np.mean(initial_distances)
             self.person_data['reference_established'] = True
             return False
-            
-        # Calcular cambio relativo en tamaño aparente
+
         current_size = self.person_data['proximity_distances'][-1]
         reference_size = self.person_data['initial_distances']
         size_change_ratio = current_size / reference_size if reference_size > 0 else 1.0
-        
-        # También verificar la tendencia reciente (últimos 5 frames)
+
         recent_trend = False
         if len(self.person_data['proximity_distances']) >= 5:
             recent_sizes = list(self.person_data['proximity_distances'])[-5:]
             if all(recent_sizes[i] >= recent_sizes[i-1] for i in range(1, len(recent_sizes))):
                 recent_trend = True
-        
-        # Detectar acercamiento basado en el cambio de tamaño y la tendencia
+
         approaching = size_change_ratio > (1 + self.proximity_threshold) and recent_trend
-        
-        # Actualizar contador de frames con acercamiento
         if approaching:
             self.person_data['approach_detected_frames'] += 1
         else:
-            # Reducir gradualmente el contador si no se detecta acercamiento
             self.person_data['approach_detected_frames'] = max(0, self.person_data['approach_detected_frames'] - 1)
-            
-        # Activar alerta si el acercamiento persiste por varios frames
-        return self.person_data['approach_detected_frames'] >= self.approach_frames_threshold
 
+        return self.person_data['approach_detected_frames'] >= self.approach_frames_threshold
 
     def process_video(self, input_path, output_path):
         try:
@@ -311,95 +302,71 @@ class BehaviorDetector:
             fps = cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-            # Configurar video de salida
-            # fourcc = cv2.VideoWriter_fourcc(*'avc1') --> Descomentar esto para trabajar con H264 y videos mp4 compatibles con navegadores
-            # el .dll del codec H264 'avc1' ya esta en el proyecto por lo que en windows no es necesario instalar nada (solo cuidado con linux)  
-
-            fourcc = cv2.VideoWriter_fourcc(*'VP90') # VP90 es un codec de video libre y abierto, utilizado por WebM y compatible con navegadores
+            fourcc = cv2.VideoWriter_fourcc(*'VP90')
             out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
             frame_idx = 0
-            frame_counter = 0  # Contador para controlar el salto de frames
+            frame_counter = 0
             detections = []
 
-            # Ajustar umbrales para compensar frames saltados
             if self.frame_skip > 0:
                 self.hidden_hands_frame_threshold = max(1, self.hidden_hands_frame_threshold // self.frame_skip)
                 self.approach_frames_threshold = max(1, self.approach_frames_threshold // self.frame_skip)
 
-            # Procesamiento frame por frame
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                # Incrementar contador de frames
                 frame_counter += 1
                 frame_idx += 1
-
-                # Procesar solo cada N frames según frame_skip (pero escribir todos los frames)
                 process_this_frame = (self.frame_skip == 0) or (frame_counter % self.frame_skip == 0)
-                
-                # Crear una copia del frame para escribir al video de salida
                 output_frame = frame.copy()
 
-                # Si toca procesar este frame
                 if process_this_frame:
-                    # Convertir BGR a RGB
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-                    # Detectar poses, manos y cara
                     pose_results = self.pose.process(frame_rgb)
                     hand_results = self.hands.process(frame_rgb)
                     face_results = self.face_mesh.process(frame_rgb)
-
-                    # Tiempo actual del video
                     current_time = frame_idx / fps
 
-                    # Variables para comportamientos detectados en este frame
                     behaviors = {
                         'hidden_hands': False,
                         'excessive_gaze': False,
-                        'camera_approach': False  # Reemplazado erratic_movements por camera_approach
+                        'camera_approach': False
                     }
 
-                    # Procesar si se detectó una persona
                     if pose_results.pose_landmarks:
-                        # Extraer coordenadas del cuerpo central
+                        # Calcular posición central en 3D
                         torso_landmarks = [
                             pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER],
                             pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER],
                             pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP],
                             pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP]
                         ]
+                        current_pos = np.array([
+                            sum(l.x for l in torso_landmarks) / len(torso_landmarks),
+                            sum(l.y for l in torso_landmarks) / len(torso_landmarks),
+                            sum(l.z for l in torso_landmarks) / len(torso_landmarks)
+                        ])
+                        position = (current_pos[0], current_pos[1])  # Mantener 2D para visualización
 
-                        # Calcular posición central
-                        current_x = sum(l.x for l in torso_landmarks) / len(torso_landmarks)
-                        current_y = sum(l.y for l in torso_landmarks) / len(torso_landmarks)
-                        position = (current_x, current_y)
-
-                        # 1. Detectar ocultación de manos o manipulación de bolsillos
+                        # Detectar manos ocultas
                         multi_hand_landmarks = hand_results.multi_hand_landmarks if hand_results.multi_hand_landmarks else []
-                        hands_in_pockets = self.detect_hand_pockets(pose_results.pose_landmarks, multi_hand_landmarks,
-                                                                    frame.shape)
+                        hands_in_pockets = self.detect_hand_pockets(pose_results.pose_landmarks, multi_hand_landmarks, frame.shape)
 
                         if hands_in_pockets:
-                            # Incrementar considerando los frames saltados
                             self.person_data['hidden_hands_frames'] += self.frame_skip
                             self.person_data['hidden_hands_duration'] = self.person_data['hidden_hands_frames'] / fps
-
                             if 'hidden_hands' not in self.person_data['suspicious_start_times']:
                                 self.person_data['suspicious_start_times']['hidden_hands'] = current_time
                                 self.person_data['hidden_hands_position'] = position
 
-                            # Verificar si ha pasado suficiente tiempo con manos ocultas
                             if (self.person_data['hidden_hands_frames'] > self.hidden_hands_frame_threshold and
                                     self.person_data['hidden_hands_duration'] >= self.hidden_hands_time_threshold):
                                 behaviors['hidden_hands'] = True
-
                                 if 'hidden_hands' not in self.person_data['alerted']:
                                     self.person_data['alerted'].add('hidden_hands')
-
                                 h, w, _ = frame.shape
                                 pos_x, pos_y = int(position[0] * w), int(position[1] * h)
                                 cv2.putText(output_frame, "Manos ocultas",
@@ -413,39 +380,32 @@ class BehaviorDetector:
                             if 'hidden_hands' in self.person_data['alerted']:
                                 self.person_data['alerted'].remove('hidden_hands')
 
-                        # 2. Detectar miradas excesivas
+                        # Detectar mirada excesiva
                         face_landmarks = face_results.multi_face_landmarks[0] if face_results.multi_face_landmarks else None
                         excessive_gaze = self.detect_excessive_gaze(face_landmarks, pose_results.pose_landmarks,
                                                                 frame.shape, current_time)
 
                         if excessive_gaze:
                             behaviors['excessive_gaze'] = True
-
                             if 'excessive_gaze' not in self.person_data['alerted']:
                                 self.person_data['alerted'].add('excessive_gaze')
-
                             h, w, _ = frame.shape
                             pos_x, pos_y = int(position[0] * w), int(position[1] * h - 60)
                             cv2.putText(output_frame, "Mirada excesiva",
                                     (pos_x - 60, pos_y),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-                        # 3. Detectar acercamiento a la cámara (reemplaza movimientos erráticos)
+                        # Detectar acercamiento
                         camera_approach = self.detect_camera_approach(pose_results.pose_landmarks, frame.shape)
 
                         if camera_approach:
                             if 'camera_approach' not in self.person_data['suspicious_start_times']:
                                 self.person_data['suspicious_start_times']['camera_approach'] = current_time
-
-                            # Verificar duración del comportamiento
                             approach_duration = current_time - self.person_data['suspicious_start_times']['camera_approach']
-
-                            if approach_duration >= 1.0:  # Al menos 1 segundo de acercamiento sospechoso
+                            if approach_duration >= 1.0:
                                 behaviors['camera_approach'] = True
-
                                 if 'camera_approach' not in self.person_data['alerted']:
                                     self.person_data['alerted'].add('camera_approach')
-
                                 h, w, _ = frame.shape
                                 pos_x, pos_y = int(position[0] * w), int(position[1] * h - 90)
                                 cv2.putText(output_frame, "Acercamiento sospechoso",
@@ -457,14 +417,12 @@ class BehaviorDetector:
                             if 'camera_approach' in self.person_data['alerted']:
                                 self.person_data['alerted'].remove('camera_approach')
 
-                        # Guardar detecciones para este frame
                         if any(behaviors.values()):
                             detections.append({
                                 'timestamp': current_time,
                                 'behaviors': [b for b, detected in behaviors.items() if detected]
                             })
 
-                        # Dibujar landmarks para visualización
                         self.mp_drawing.draw_landmarks(
                             output_frame,
                             pose_results.pose_landmarks,
@@ -477,10 +435,8 @@ class BehaviorDetector:
                                     hand_landmarks,
                                     self.mp_hands.HAND_CONNECTIONS)
 
-                        # Dibujar FaceMesh si está disponible
                         if face_results.multi_face_landmarks:
                             for face_landmarks in face_results.multi_face_landmarks:
-                                # Dibujar solo el contorno facial y los ojos
                                 connections = []
                                 for connection in mp.solutions.face_mesh.FACEMESH_CONTOURS:
                                     connections.append(connection)
@@ -490,12 +446,10 @@ class BehaviorDetector:
                                     connections,
                                     landmark_drawing_spec=None)
 
-                    # Mostrar contador de personas en la esquina
                     num_people = 1 if pose_results.pose_landmarks else 0
                     cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-                
                 _, buffer = cv2.imencode('.jpg', output_frame)
                 jpg_b64 = base64.b64encode(buffer).decode('utf-8')
                 
@@ -506,16 +460,9 @@ class BehaviorDetector:
                 }
 
                 yield frame_data
-
-                # Escribir frame procesado al video de salida
                 out.write(output_frame)
-
-                # Mostrar progreso cada 100 frames
-                # if frame_idx % 100 == 0:
-                #     print(f"Procesado {frame_idx}/{total_frames} frames ({frame_idx / total_frames * 100:.1f}%)")
 
             yield detections
         finally:
-            # Liberar recursos
             cap.release()
             out.release()

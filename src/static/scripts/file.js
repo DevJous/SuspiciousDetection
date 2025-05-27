@@ -285,7 +285,7 @@ var height_resize;
 
         // Mostrar imagen procesada en el modal
         modalImgPreview.src = '';
-        modalImgPreview.src = `${data.Imagen_Redimensionada}?t=${timestamp}`;
+        modalImgPreview.src = `${data.Imagen_Redimensionada.replace('src\\', '')}?t=${timestamp}`;
 
         this.fileModalImageName = 'resized_'+cachedFile.name;
 
@@ -509,7 +509,7 @@ var height_resize;
 
             const timestamp = new Date().getTime();
 
-            modalImg.src = `${this.response.path}?t=${timestamp}`;
+            modalImg.src = `${this.response.path.replace('src\\', '')}?t=${timestamp}`;
 
 
         } catch (error) {
@@ -650,7 +650,7 @@ var height_resize;
             console.log('data',data)
 
             if (data.path != null) {
-                this.new_image = `${data.path}?timestamp=${new Date().getTime()}`;
+                this.new_image = `${data.replace("src/", "")}?timestamp=${new Date().getTime()}`;
 
                 if (data.position != null) {
                     drawPoints(data.position, this.width_resize, this.height_resize);

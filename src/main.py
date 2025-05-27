@@ -1,4 +1,5 @@
 import datetime
+from fileinput import filename
 from genericpath import exists
 import io
 import subprocess
@@ -49,6 +50,7 @@ from model.PoseModule import poseDetector
 from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
 from model.BehaviorDetector import BehaviorDetector
+from model.BehaviorDetector3d import BehaviorDetector3D
 from Resources.Helper import get_work_path, get_processed_route, get_temp_route
 
 # Inicializar la app Flask
@@ -56,7 +58,7 @@ app = Flask(__name__, static_folder="static")
 conn = get_connection()
 
 # Crear una carpeta para guardar las imágenes subidas
-UPLOAD_FOLDER = 'static/uploads/'
+UPLOAD_FOLDER = 'static/uploads'
 #app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['UPLOAD_FOLDER'] = 'static/videos/uploads'
 app.config['RESULT_FOLDER'] = 'static/videos/results'
@@ -144,7 +146,7 @@ def upload_image():
             return jsonify({'message': 'No se proporcionó un nombre de archivo válido.'}), 400
 
         filename = data['fileName']
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        filepath = os.path.join('src', UPLOAD_FOLDER, filename)
 
         # Verificar si el archivo existe
         if not os.path.isfile(filepath):
@@ -165,7 +167,7 @@ def upload_image():
         img_with_pose = detector.findPose(img)
 
         # Guardar la imagen con los puntos detectados
-        output_path = os.path.join(UPLOAD_FOLDER, 'points_' + filename)
+        output_path = os.path.join("src", UPLOAD_FOLDER, 'points_' + filename)
         cv.imwrite(output_path, img_with_pose)
 
         # Coordenadas de los puntos
@@ -197,7 +199,7 @@ def resizeImage():
             return jsonify({'error': 'Nombre de archivo vacío'}), 400
 
         # Guardar el archivo temporalmente
-        filepath = os.path.join(UPLOAD_FOLDER, image.filename)
+        filepath = os.path.join("src", UPLOAD_FOLDER, image.filename)
         image.save(filepath)
 
         # Obtener dimensiones de la imagen antes de redimensionar
@@ -211,7 +213,7 @@ def resizeImage():
                     resized_img_w = width
                     resized_img_h = height
                     resized_image_name = 'resized_' + image.filename
-                    output_path_file = os.path.join(UPLOAD_FOLDER, resized_image_name)
+                    output_path_file = os.path.join('src', UPLOAD_FOLDER, resized_image_name)
 
                     try:
                         if original_format == 'PNG':
@@ -236,6 +238,7 @@ def resizeImage():
         return jsonify({'Imagen_Redimensionada': output_path_file, 'alto': resized_img_h, 'ancho': resized_img_w}), 200
 
     except Exception as e:
+        print(e)
         return jsonify({'error': str(e)}), 500
 
 
@@ -1121,8 +1124,8 @@ def save_video():
         return jsonify({'message': 'El archivo ya existe', 'filename': file.filename}), 400
 
 
-@app.route('/stream_frames/<filename>/<frame_skip>')
-def stream_frames(filename, frame_skip):
+@app.route('/stream_frames/<filename>/<frame_skip>/<dimension>')
+def stream_frames(filename, frame_skip, dimension):
     file_path = get_work_path()
     filepath = os.path.join(file_path, filename)
 
@@ -1134,7 +1137,7 @@ def stream_frames(filename, frame_skip):
 
     def generar():
         global detecciones_guardadas
-        detector = BehaviorDetector(frame_skip=int(frame_skip))
+        detector = BehaviorDetector(frame_skip=int(frame_skip)) if dimension == '2D' else BehaviorDetector3D(frame_skip=int(frame_skip))
         
         for result in detector.process_video(filepath, output_path):
             if isinstance(result, list):  # Si es la lista de detecciones
