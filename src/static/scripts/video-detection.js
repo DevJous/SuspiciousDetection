@@ -237,12 +237,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         className = 'excessive-gaze';
                         break;
                     case 'hidden_hands':
-                        label = 'Manos ocultas';
+                        label = 'Manos ocultas detrás';
                         className = 'hidden-hands';
                         break;
-                    case 'camera_approach':
-                        label = 'Acercamiento indebido';
-                        className = 'camera-approach';
+                    case 'hand_under_clothes':
+                        label = 'Mano bajo ropa';
+                        className = 'hand-under-clothes';
                         break;
                 }
 
@@ -275,10 +275,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-eye"></i>Mirada excesiva</label>`;
                     break;
                 case 'hidden_hands':
-                    realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-hand-paper"></i>Manos ocultas</label>`;
+                    realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-hand-paper"></i>Manos ocultas detrás</label>`;
                     break;
-                case 'camera_approach':
-                    realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-camera"></i>Acercamiento indebido</label>`;
+                case 'hand_under_clothes':
+                    realtime_list.innerHTML += `${realtime_list.innerText !== '' ? '<br>' : ''}<label><i class="fa-solid fa-camera"></i>Mano oculta bajo ropa</label>`;
                     break;
                 default:
                     break;

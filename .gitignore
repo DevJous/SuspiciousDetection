@@ -1,1 +1,24 @@
+# Ignora carpetas de compilación de Python
+__pycache__/
+*.py[cod]
+
+# Entornos virtuales
+venv/
+.env/
+.venv/
+
+# Archivos temporales de editores
+*.swp
+*.swo
+*.swn
+*.bak
+*~
+
+# Archivos de VSCode (si usas)
+.vscode/
+
+# Archivos de logs
+*.log
+
+# Archivos de configuración locales
 .env
