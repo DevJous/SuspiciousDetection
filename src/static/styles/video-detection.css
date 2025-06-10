@@ -144,7 +144,12 @@
     align-items: center;
 }
 
-@media (max-width: 768px) {
+.menu-btns {
+    display: flex;
+    gap: 8px;
+}
+
+@media (max-width: 850px) {
     #video-container {
         display: flex;
         flex-direction: column;
@@ -158,12 +163,16 @@
         max-width: 550px;
     }
 
-    .ir-info {
+    /* .ir-info {
         display: none;
-    }
+    } */
 
     .separator:last-child {
         display: none;
+    }
+
+    .menu-btns {
+        flex-direction: column;
     }
 }
 

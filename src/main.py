@@ -124,14 +124,6 @@ def live_detection():
 def video_detection():
     return render_template('video-detection.html')
 
-@app.route('/new-detection')
-def new_detection():
-    return render_template('new-detection.html')
-
-@app.route('/results')
-def results():
-    return render_template('results.html')
-
 # endregion
 
 # region POSTURE_ESTIMATION_MODULE_ENDPOINTS
