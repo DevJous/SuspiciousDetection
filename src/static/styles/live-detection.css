@@ -8,8 +8,12 @@
 }
 
 
-.container_main{
-    width:100vw;
-    height:100vh;
-    padding-top:10vh;
+.container_main {
+    /* height: 100vh; */
+    padding-top: 13vh;
+    padding-bottom: 50px;
+}
+
+#page-title {
+    margin-left: 20px;
 }
