@@ -1147,6 +1147,27 @@ def stream_frames(filename, frame_skip, dimension):
     return Response(generar(), mimetype='text/event-stream')
 
 
+@app.route('/camera_stream_frames/<frame_skip>/<dimension>/<connection>')
+def camera_stream_frames(frame_skip, dimension, connection):
+    def generar():
+        global detecciones_guardadas
+        detector = BehaviorDetector(frame_skip=int(frame_skip), connection=connection, with_camera=True) if dimension == '2D' else BehaviorDetector3D(frame_skip=int(frame_skip), connection=connection, with_camera=True)
+        
+        for result in detector.process_video(None, None):
+            if isinstance(result, list):  # Si es la lista de detecciones
+                detecciones_guardadas = result
+                yield "data: EOF\n\n"
+            else:  # Si es un frame en base64 (string) o un diccionario con frame+detecciones
+                if isinstance(result, dict):
+                    import json
+                    json_data = json.dumps(result)
+                    yield f"data: {json_data}\n\n"
+                else:
+                    # Si es solo un string (frame en base64)
+                    yield f"data: {result}\n\n"
+
+    return Response(generar(), mimetype='text/event-stream')
+
 @app.route('/detecciones')
 def get_detecciones():
     return jsonify(detecciones_guardadas)

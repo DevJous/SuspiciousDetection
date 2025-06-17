@@ -7,12 +7,14 @@ from collections import defaultdict, deque
 import base64
 
 class BehaviorDetector:
-    def __init__(self, frame_skip=3):
+    def __init__(self, frame_skip=3, connection = None, with_camera=False):
         self.mp_pose = mp.solutions.pose
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_face_mesh = mp.solutions.face_mesh
         self.frame_skip = frame_skip
+        self.with_camera = with_camera
+        self.connection = connection
 
         self.pose = self.mp_pose.Pose(
             static_image_mode=False,
@@ -236,14 +238,15 @@ class BehaviorDetector:
 
     def process_video(self, input_path, output_path):
         try:
-            cap = cv2.VideoCapture(input_path)
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            cap = cv2.VideoCapture(input_path) if not self.with_camera else cv2.VideoCapture(self.rtsp if self.rtsp else 0)
             fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-            fourcc = cv2.VideoWriter_fourcc(*'VP90')
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+            
+            if not self.with_camera:
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                fourcc = cv2.VideoWriter_fourcc(*'VP90')
+                out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
             frame_idx = 0
             frame_counter = 0
@@ -269,134 +272,137 @@ class BehaviorDetector:
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
                     pose_results = self.pose.process(frame_rgb)
-                    hand_results = self.hands.process(frame_rgb)
-                    face_results = self.face_mesh.process(frame_rgb)
-
-                    current_time = frame_idx / fps
-
-                    behaviors = {
-                        'hidden_hands': False,
-                        'excessive_gaze': False,
-                        'hand_under_clothes': False
-                    }
-
+                    
                     if pose_results.pose_landmarks:
-                        torso_landmarks = [
-                            pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER],
-                            pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER],
-                            pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP],
-                            pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP]
-                        ]
 
-                        current_x = sum(l.x for l in torso_landmarks) / len(torso_landmarks)
-                        current_y = sum(l.y for l in torso_landmarks) / len(torso_landmarks)
-                        position = (current_x, current_y)
+                        hand_results = self.hands.process(frame_rgb)
+                        face_results = self.face_mesh.process(frame_rgb)
 
-                        multi_hand_landmarks = hand_results.multi_hand_landmarks if hand_results.multi_hand_landmarks else []
-                        hands_in_pockets = self.detect_hand_pockets(pose_results.pose_landmarks, multi_hand_landmarks,
-                                                                    frame.shape)
+                        current_time = frame_idx / fps
 
-                        if hands_in_pockets:
-                            self.person_data['hidden_hands_frames'] += self.frame_skip
-                            self.person_data['hidden_hands_duration'] = self.person_data['hidden_hands_frames'] / fps
+                        behaviors = {
+                            'hidden_hands': False,
+                            'excessive_gaze': False,
+                            'hand_under_clothes': False
+                        }
 
-                            if 'hidden_hands' not in self.person_data['suspicious_start_times']:
-                                self.person_data['suspicious_start_times']['hidden_hands'] = current_time
-                                self.person_data['hidden_hands_position'] = position
+                        if pose_results.pose_landmarks:
+                            torso_landmarks = [
+                                pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER],
+                                pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER],
+                                pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP],
+                                pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP]
+                            ]
 
-                            if (self.person_data['hidden_hands_frames'] > self.hidden_hands_frame_threshold and
-                                    self.person_data['hidden_hands_duration'] >= self.hidden_hands_time_threshold):
-                                behaviors['hidden_hands'] = True
+                            current_x = sum(l.x for l in torso_landmarks) / len(torso_landmarks)
+                            current_y = sum(l.y for l in torso_landmarks) / len(torso_landmarks)
+                            position = (current_x, current_y)
 
-                                if 'hidden_hands' not in self.person_data['alerted']:
-                                    self.person_data['alerted'].add('hidden_hands')
+                            multi_hand_landmarks = hand_results.multi_hand_landmarks if hand_results.multi_hand_landmarks else []
+                            hands_in_pockets = self.detect_hand_pockets(pose_results.pose_landmarks, multi_hand_landmarks,
+                                                                        frame.shape)
 
-                                h, w, _ = frame.shape
-                                pos_x, pos_y = int(position[0] * w), int(position[1] * h)
-                                cv2.putText(output_frame, "Manos ocultas",
-                                        (pos_x - 60, pos_y - 30),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                        else:
-                            self.person_data['hidden_hands_frames'] = 0
-                            self.person_data['hidden_hands_duration'] = 0
-                            if 'hidden_hands' in self.person_data['suspicious_start_times']:
-                                del self.person_data['suspicious_start_times']['hidden_hands']
-                            if 'hidden_hands' in self.person_data['alerted']:
-                                self.person_data['alerted'].remove('hidden_hands')
+                            if hands_in_pockets:
+                                self.person_data['hidden_hands_frames'] += self.frame_skip
+                                self.person_data['hidden_hands_duration'] = self.person_data['hidden_hands_frames'] / fps
 
-                        face_landmarks = face_results.multi_face_landmarks[0] if face_results.multi_face_landmarks else None
-                        excessive_gaze = self.detect_excessive_gaze(face_landmarks, pose_results.pose_landmarks,
-                                                                frame.shape, current_time)
+                                if 'hidden_hands' not in self.person_data['suspicious_start_times']:
+                                    self.person_data['suspicious_start_times']['hidden_hands'] = current_time
+                                    self.person_data['hidden_hands_position'] = position
 
-                        if excessive_gaze:
-                            behaviors['excessive_gaze'] = True
+                                if (self.person_data['hidden_hands_frames'] > self.hidden_hands_frame_threshold and
+                                        self.person_data['hidden_hands_duration'] >= self.hidden_hands_time_threshold):
+                                    behaviors['hidden_hands'] = True
 
-                            if 'excessive_gaze' not in self.person_data['alerted']:
-                                self.person_data['alerted'].add('excessive_gaze')
+                                    if 'hidden_hands' not in self.person_data['alerted']:
+                                        self.person_data['alerted'].add('hidden_hands')
 
-                            h, w, _ = frame.shape
-                            pos_x, pos_y = int(position[0] * w), int(position[1] * h - 60)
-                            cv2.putText(output_frame, "Mirada excesiva",
-                                    (pos_x - 60, pos_y),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                                    h, w, _ = frame.shape
+                                    pos_x, pos_y = int(position[0] * w), int(position[1] * h)
+                                    cv2.putText(output_frame, "Manos ocultas",
+                                            (pos_x - 60, pos_y - 30),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                            else:
+                                self.person_data['hidden_hands_frames'] = 0
+                                self.person_data['hidden_hands_duration'] = 0
+                                if 'hidden_hands' in self.person_data['suspicious_start_times']:
+                                    del self.person_data['suspicious_start_times']['hidden_hands']
+                                if 'hidden_hands' in self.person_data['alerted']:
+                                    self.person_data['alerted'].remove('hidden_hands')
 
-                        hand_under_clothes = self.detect_hand_under_clothes(pose_results.pose_landmarks)
+                            face_landmarks = face_results.multi_face_landmarks[0] if face_results.multi_face_landmarks else None
+                            excessive_gaze = self.detect_excessive_gaze(face_landmarks, pose_results.pose_landmarks,
+                                                                    frame.shape, current_time)
 
-                        if hand_under_clothes:
-                            self.person_data['hand_under_clothes_frames'] += self.frame_skip
-                            self.person_data['hand_under_clothes_duration'] = self.person_data['hand_under_clothes_frames'] / fps
+                            if excessive_gaze:
+                                behaviors['excessive_gaze'] = True
 
-                            if 'hand_under_clothes' not in self.person_data['suspicious_start_times']:
-                                self.person_data['suspicious_start_times']['hand_under_clothes'] = current_time
-
-                            if (self.person_data['hand_under_clothes_frames'] > self.hand_under_clothes_frame_threshold and
-                                    self.person_data['hand_under_clothes_duration'] >= self.hand_under_clothes_time_threshold):
-                                behaviors['hand_under_clothes'] = True
-
-                                if 'hand_under_clothes' not in self.person_data['alerted']:
-                                    self.person_data['alerted'].add('hand_under_clothes')
+                                if 'excessive_gaze' not in self.person_data['alerted']:
+                                    self.person_data['alerted'].add('excessive_gaze')
 
                                 h, w, _ = frame.shape
-                                pos_x, pos_y = int(position[0] * w), int(position[1] * h - 90)
-                                cv2.putText(output_frame, "Mano bajo ropa",
+                                pos_x, pos_y = int(position[0] * w), int(position[1] * h - 60)
+                                cv2.putText(output_frame, "Mirada excesiva",
                                         (pos_x - 60, pos_y),
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                        else:
-                            self.person_data['hand_under_clothes_frames'] = 0
-                            self.person_data['hand_under_clothes_duration'] = 0
-                            if 'hand_under_clothes' in self.person_data['suspicious_start_times']:
-                                del self.person_data['suspicious_start_times']['hand_under_clothes']
-                            if 'hand_under_clothes' in self.person_data['alerted']:
-                                self.person_data['alerted'].remove('hand_under_clothes')
 
-                        if any(behaviors.values()):
-                            detections.append({
-                                'timestamp': current_time,
-                                'behaviors': [b for b, detected in behaviors.items() if detected]
-                            })
+                            hand_under_clothes = self.detect_hand_under_clothes(pose_results.pose_landmarks)
 
-                        self.mp_drawing.draw_landmarks(
-                            output_frame,
-                            pose_results.pose_landmarks,
-                            self.mp_pose.POSE_CONNECTIONS)
+                            if hand_under_clothes:
+                                self.person_data['hand_under_clothes_frames'] += self.frame_skip
+                                self.person_data['hand_under_clothes_duration'] = self.person_data['hand_under_clothes_frames'] / fps
 
-                        if hand_results.multi_hand_landmarks:
-                            for hand_landmarks in hand_results.multi_hand_landmarks:
-                                self.mp_drawing.draw_landmarks(
-                                    output_frame,
-                                    hand_landmarks,
-                                    self.mp_hands.HAND_CONNECTIONS)
+                                if 'hand_under_clothes' not in self.person_data['suspicious_start_times']:
+                                    self.person_data['suspicious_start_times']['hand_under_clothes'] = current_time
 
-                        if face_results.multi_face_landmarks:
-                            for face_landmarks in face_results.multi_face_landmarks:
-                                connections = []
-                                for connection in mp.solutions.face_mesh.FACEMESH_CONTOURS:
-                                    connections.append(connection)
-                                self.mp_drawing.draw_landmarks(
-                                    output_frame,
-                                    face_landmarks,
-                                    connections,
-                                    landmark_drawing_spec=None)
+                                if (self.person_data['hand_under_clothes_frames'] > self.hand_under_clothes_frame_threshold and
+                                        self.person_data['hand_under_clothes_duration'] >= self.hand_under_clothes_time_threshold):
+                                    behaviors['hand_under_clothes'] = True
+
+                                    if 'hand_under_clothes' not in self.person_data['alerted']:
+                                        self.person_data['alerted'].add('hand_under_clothes')
+
+                                    h, w, _ = frame.shape
+                                    pos_x, pos_y = int(position[0] * w), int(position[1] * h - 90)
+                                    cv2.putText(output_frame, "Mano bajo ropa",
+                                            (pos_x - 60, pos_y),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                            else:
+                                self.person_data['hand_under_clothes_frames'] = 0
+                                self.person_data['hand_under_clothes_duration'] = 0
+                                if 'hand_under_clothes' in self.person_data['suspicious_start_times']:
+                                    del self.person_data['suspicious_start_times']['hand_under_clothes']
+                                if 'hand_under_clothes' in self.person_data['alerted']:
+                                    self.person_data['alerted'].remove('hand_under_clothes')
+
+                            if any(behaviors.values()):
+                                detections.append({
+                                    'timestamp': current_time,
+                                    'behaviors': [b for b, detected in behaviors.items() if detected]
+                                })
+
+                            self.mp_drawing.draw_landmarks(
+                                output_frame,
+                                pose_results.pose_landmarks,
+                                self.mp_pose.POSE_CONNECTIONS)
+
+                            if hand_results.multi_hand_landmarks:
+                                for hand_landmarks in hand_results.multi_hand_landmarks:
+                                    self.mp_drawing.draw_landmarks(
+                                        output_frame,
+                                        hand_landmarks,
+                                        self.mp_hands.HAND_CONNECTIONS)
+
+                            if face_results.multi_face_landmarks:
+                                for face_landmarks in face_results.multi_face_landmarks:
+                                    connections = []
+                                    for connection in mp.solutions.face_mesh.FACEMESH_CONTOURS:
+                                        connections.append(connection)
+                                    self.mp_drawing.draw_landmarks(
+                                        output_frame,
+                                        face_landmarks,
+                                        connections,
+                                        landmark_drawing_spec=None)
 
                     num_people = 1 if pose_results.pose_landmarks else 0
                     cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
@@ -410,13 +416,19 @@ class BehaviorDetector:
                     'frame': jpg_b64,
                     'progress': f"{round(frame_idx / total_frames * 100)}",
                     'detections': list(detections[-1]['behaviors']) if detections else None
+                } if not self.with_camera else {
+                    'frame': jpg_b64,
+                    'detections': list(detections[-1]['behaviors']) if detections else None
                 }
 
                 yield frame_data
 
-                out.write(output_frame)
+                if not self.with_camera:
+                    out.write(output_frame)
 
             yield detections
         finally:
             cap.release()
-            out.release()
+
+            if not self.with_camera:
+                out.release()
