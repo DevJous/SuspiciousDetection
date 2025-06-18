@@ -238,12 +238,12 @@ class BehaviorDetector:
 
     def process_video(self, input_path, output_path):
         try:
-            cap = cv2.VideoCapture(input_path) if not self.with_camera else cv2.VideoCapture(self.rtsp if self.rtsp else 0)
+            cap = cv2.VideoCapture(input_path) if not self.with_camera else cv2.VideoCapture(self.connection if self.connection else 0)
             fps = cap.get(cv2.CAP_PROP_FPS)
-            
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
             if not self.with_camera:
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 fourcc = cv2.VideoWriter_fourcc(*'VP90')
                 out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
@@ -267,6 +267,7 @@ class BehaviorDetector:
                 process_this_frame = (self.frame_skip == 0) or (frame_counter % self.frame_skip == 0)
                 
                 output_frame = frame.copy()
+
 
                 if process_this_frame:
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -403,6 +404,9 @@ class BehaviorDetector:
                                         face_landmarks,
                                         connections,
                                         landmark_drawing_spec=None)
+                    else:
+                        if self.with_camera:
+                            cap.release()
 
                     num_people = 1 if pose_results.pose_landmarks else 0
                     cv2.putText(output_frame, f"Personas: {num_people}", (10, 30),
@@ -421,10 +425,10 @@ class BehaviorDetector:
                     'detections': list(detections[-1]['behaviors']) if detections else None
                 }
 
-                yield frame_data
-
                 if not self.with_camera:
                     out.write(output_frame)
+
+                yield frame_data
 
             yield detections
         finally:

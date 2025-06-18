@@ -10,11 +10,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const uploadBtn = document.getElementById('upload-btn');
     const reuploadBtn = document.getElementById('reupload-btn');
     const initInfo = document.getElementById('init-info');
-    const progressContainer = document.getElementById('progress-container');
     const processedVideo = document.getElementById('full-video');
     const timestampsList = document.getElementById('timestamps-list');
     const imgProcessed = document.getElementById('img-processed-video');
-    const videoPreview = document.getElementById("loaded-video");
     const skipframes_ddMenuButton = document.getElementById("dropdown1");
     const skipframes_ddItems = document.querySelectorAll('#dd1 .dropdown-item');
     const dimension_ddMenuButton = document.getElementById("dropdown2");
@@ -44,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function () {
             uploadBtn.disabled = true;
             irSubContainer.style.display = 'none';
             foundResults.style.display = 'block';
-            showToast("Procesando video", "info");
+            showToast("Procesando dispositivo de captura", "info");
         } else {
             showToast('Conexión ingresada es erronea o está vacia', 'error')
         }
@@ -64,13 +62,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function goToDetection() {
         init = false;
-        const source = new EventSource(`/camera_stream_frames/${framesSkipToAnalyze}/${selDimension}/URL`);
+        const source = new EventSource(`/camera_stream_frames/${framesSkipToAnalyze}/${selDimension}/${fixUrlForGet(device_input.value)}`);
 
         source.onmessage = function (event) {
             if (event.data === "EOF") {
                 source.close();
                 realtimeSpinner.style.display = 'none';
-                showToast("Video procesado correctamente", "success");
+                showToast("Detección en vivo culminada correctamente", "success");
                 fetch('/detecciones')
                     .then(res => res.json())
                     .then(data => {
@@ -81,10 +79,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 const data = JSON.parse(event.data);
                 if (event.data && !init) {
                     reuploadBtn.style.display = 'inline-block';
-                    progressContainer.style.display = 'block';
                     imgProcessed.style.display = 'block';
                     initInfo.style.display = 'none';
-                    videoPreview.play();
                     init = true;
                 }
                 imgProcessed.src = 'data:image/jpeg;base64,' + data.frame;
@@ -276,5 +272,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const regex = /^(rtsp|http|https):\/\/[^\s/$.?#].[^\s]*$/i;
 
         return regex.test(url);
+    }
+
+    /// BREVE RESUMEN
+    // La peticion y respuesta continua de JS con Flask solo es posible mediante una peticion GET
+    // El envio de parametros o enrutamientos van seguidos de un '/', este metodo es una
+    // manera de enmascarar la url para evitar que se tome como toda la direccion como varios parametros 
+    function fixUrlForGet(url) {
+        return url ? url.replaceAll('/', '{slash}') : null
     }
 });

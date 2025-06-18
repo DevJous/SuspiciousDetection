@@ -51,7 +51,7 @@ from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
 from model.BehaviorDetector import BehaviorDetector
 from model.BehaviorDetector3d import BehaviorDetector3D
-from Resources.Helper import get_work_path, get_processed_route, get_temp_route
+from Resources.Helper import get_work_path, get_processed_route, normalizeUrl
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -1151,7 +1151,7 @@ def stream_frames(filename, frame_skip, dimension):
 def camera_stream_frames(frame_skip, dimension, connection):
     def generar():
         global detecciones_guardadas
-        detector = BehaviorDetector(frame_skip=int(frame_skip), connection=connection, with_camera=True) if dimension == '2D' else BehaviorDetector3D(frame_skip=int(frame_skip), connection=connection, with_camera=True)
+        detector = BehaviorDetector(frame_skip=int(frame_skip), connection=normalizeUrl(connection), with_camera=True) if dimension == '2D' else BehaviorDetector3D(frame_skip=int(frame_skip), connection=normalizeUrl(connection), with_camera=True)
         
         for result in detector.process_video(None, None):
             if isinstance(result, list):  # Si es la lista de detecciones

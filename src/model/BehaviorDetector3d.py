@@ -7,12 +7,14 @@ from collections import defaultdict, deque
 import base64
 
 class BehaviorDetector3D:
-    def __init__(self, frame_skip=3):
+    def __init__(self, frame_skip=3, connection = None, with_camera=False):
         self.mp_pose = mp.solutions.pose
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_face_mesh = mp.solutions.face_mesh
         self.frame_skip = frame_skip
+        self.with_camera = with_camera
+        self.connection = connection
 
         self.pose = self.mp_pose.Pose(
             static_image_mode=False,
@@ -523,13 +525,14 @@ class BehaviorDetector3D:
     def process_video(self, input_path, output_path):
         try:
             cap = cv2.VideoCapture(input_path)
+            fps = cap.get(cv2.CAP_PROP_FPS)
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-            fourcc = cv2.VideoWriter_fourcc(*'VP90')
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+            
+            if not self.with_camera:    
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                fourcc = cv2.VideoWriter_fourcc(*'VP90')
+                out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
             frame_idx = 0
             frame_counter = 0
@@ -554,130 +557,135 @@ class BehaviorDetector3D:
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
                     pose_results = self.pose.process(frame_rgb)
-                    hand_results = self.hands.process(frame_rgb)
-                    face_results = self.face_mesh.process(frame_rgb)
 
-                    current_time = frame_idx / fps
+                    if pose_results.pose_landmarks:   
+                        hand_results = self.hands.process(frame_rgb)
+                        face_results = self.face_mesh.process(frame_rgb)
 
-                    behaviors = {
-                        'hidden_hands': False,
-                        'excessive_gaze': False,
-                        'hand_under_clothes': False
-                    }
+                        current_time = frame_idx / fps
 
-                    if pose_results.pose_landmarks:
-                        torso_landmarks_3d = [
-                            self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER]),
-                            self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]),
-                            self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP]),
-                            self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP])
-                        ]
+                        behaviors = {
+                            'hidden_hands': False,
+                            'excessive_gaze': False,
+                            'hand_under_clothes': False
+                        }
 
-                        position_3d = np.mean(torso_landmarks_3d, axis=0)
+                        if pose_results.pose_landmarks:
+                            torso_landmarks_3d = [
+                                self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER]),
+                                self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]),
+                                self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP]),
+                                self.get_3d_position(pose_results.pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP])
+                            ]
 
-                        # Realizar análisis de profundidad de manos
-                        multi_hand_landmarks = hand_results.multi_hand_landmarks if hand_results.multi_hand_landmarks else []
-                        depth_analysis = self.analyze_hand_depth_position(pose_results.pose_landmarks, multi_hand_landmarks)
-                        self._last_depth_analysis = depth_analysis  # Guardar para uso en otras funciones
-                        
-                        hands_in_pockets_3d = self.detect_hand_pockets_3d(pose_results.pose_landmarks, multi_hand_landmarks, frame.shape)
+                            position_3d = np.mean(torso_landmarks_3d, axis=0)
 
-                        if hands_in_pockets_3d:
-                            self.person_data['hidden_hands_frames'] += self.frame_skip
-                            self.person_data['hidden_hands_duration'] = self.person_data['hidden_hands_frames'] / fps
+                            # Realizar análisis de profundidad de manos
+                            multi_hand_landmarks = hand_results.multi_hand_landmarks if hand_results.multi_hand_landmarks else []
+                            depth_analysis = self.analyze_hand_depth_position(pose_results.pose_landmarks, multi_hand_landmarks)
+                            self._last_depth_analysis = depth_analysis  # Guardar para uso en otras funciones
+                            
+                            hands_in_pockets_3d = self.detect_hand_pockets_3d(pose_results.pose_landmarks, multi_hand_landmarks, frame.shape)
 
-                            if 'hidden_hands' not in self.person_data['suspicious_start_times']:
-                                self.person_data['suspicious_start_times']['hidden_hands'] = current_time
-                                self.person_data['hidden_hands_position_3d'] = position_3d
+                            if hands_in_pockets_3d:
+                                self.person_data['hidden_hands_frames'] += self.frame_skip
+                                self.person_data['hidden_hands_duration'] = self.person_data['hidden_hands_frames'] / fps
 
-                            if (self.person_data['hidden_hands_frames'] > self.hidden_hands_frame_threshold and
-                                    self.person_data['hidden_hands_duration'] >= self.hidden_hands_time_threshold):
-                                behaviors['hidden_hands'] = True
+                                if 'hidden_hands' not in self.person_data['suspicious_start_times']:
+                                    self.person_data['suspicious_start_times']['hidden_hands'] = current_time
+                                    self.person_data['hidden_hands_position_3d'] = position_3d
 
-                                if 'hidden_hands' not in self.person_data['alerted']:
-                                    self.person_data['alerted'].add('hidden_hands')
+                                if (self.person_data['hidden_hands_frames'] > self.hidden_hands_frame_threshold and
+                                        self.person_data['hidden_hands_duration'] >= self.hidden_hands_time_threshold):
+                                    behaviors['hidden_hands'] = True
 
-                                h, w, _ = frame.shape
-                                pos_x, pos_y = int(position_3d[0] * w), int(position_3d[1] * h)
-                                
-                                # Mostrar información de profundidad
-                                depth_info = f"Profundidad: {depth_analysis['torso_depth']:.3f}"
-                                cv2.putText(output_frame, "Manos ocultas (Detras)", (pos_x - 60, pos_y - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                                cv2.putText(output_frame, depth_info, (pos_x - 60, pos_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
-                        else:
-                            self.person_data['hidden_hands_frames'] = 0
-                            self.person_data['hidden_hands_duration'] = 0
-                            if 'hidden_hands' in self.person_data['suspicious_start_times']:
-                                del self.person_data['suspicious_start_times']['hidden_hands']
-                            if 'hidden_hands' in self.person_data['alerted']:
-                                self.person_data['alerted'].remove('hidden_hands')
+                                    if 'hidden_hands' not in self.person_data['alerted']:
+                                        self.person_data['alerted'].add('hidden_hands')
 
-                        face_landmarks = face_results.multi_face_landmarks[0] if face_results.multi_face_landmarks else None
-                        excessive_gaze_3d = self.detect_excessive_gaze_3d(face_landmarks, pose_results.pose_landmarks, frame.shape, current_time)
+                                    h, w, _ = frame.shape
+                                    pos_x, pos_y = int(position_3d[0] * w), int(position_3d[1] * h)
+                                    
+                                    # Mostrar información de profundidad
+                                    depth_info = f"Profundidad: {depth_analysis['torso_depth']:.3f}"
+                                    cv2.putText(output_frame, "Manos ocultas (Detras)", (pos_x - 60, pos_y - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                                    cv2.putText(output_frame, depth_info, (pos_x - 60, pos_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+                            else:
+                                self.person_data['hidden_hands_frames'] = 0
+                                self.person_data['hidden_hands_duration'] = 0
+                                if 'hidden_hands' in self.person_data['suspicious_start_times']:
+                                    del self.person_data['suspicious_start_times']['hidden_hands']
+                                if 'hidden_hands' in self.person_data['alerted']:
+                                    self.person_data['alerted'].remove('hidden_hands')
 
-                        if excessive_gaze_3d:
-                            behaviors['excessive_gaze'] = True
+                            face_landmarks = face_results.multi_face_landmarks[0] if face_results.multi_face_landmarks else None
+                            excessive_gaze_3d = self.detect_excessive_gaze_3d(face_landmarks, pose_results.pose_landmarks, frame.shape, current_time)
 
-                            if 'excessive_gaze' not in self.person_data['alerted']:
-                                self.person_data['alerted'].add('excessive_gaze')
+                            if excessive_gaze_3d:
+                                behaviors['excessive_gaze'] = True
 
-                            h, w, _ = frame.shape
-                            pos_x, pos_y = int(position_3d[0] * w), int(position_3d[1] * h - 60)
-
-                        hand_under_clothes_3d = self.detect_hand_under_clothes_3d(pose_results.pose_landmarks)
-
-                        if hand_under_clothes_3d:
-                            self.person_data['hand_under_clothes_frames'] += self.frame_skip
-                            self.person_data['hand_under_clothes_duration'] = self.person_data['hand_under_clothes_frames'] / fps
-
-                            if 'hand_under_clothes' not in self.person_data['suspicious_start_times']:
-                                self.person_data['suspicious_start_times']['hand_under_clothes'] = current_time
-
-                            if (self.person_data['hand_under_clothes_frames'] > self.hand_under_clothes_frame_threshold and
-                                    self.person_data['hand_under_clothes_duration'] >= self.hand_under_clothes_time_threshold):
-                                behaviors['hand_under_clothes'] = True
-
-                                if 'hand_under_clothes' not in self.person_data['alerted']:
-                                    self.person_data['alerted'].add('hand_under_clothes')
+                                if 'excessive_gaze' not in self.person_data['alerted']:
+                                    self.person_data['alerted'].add('excessive_gaze')
 
                                 h, w, _ = frame.shape
-                                pos_x, pos_y = int(position_3d[0] * w), int(position_3d[1] * h - 90)
-                        else:
-                            # Reset counters si no se detecta
-                            self.person_data['hand_under_clothes_frames'] = 0
-                            self.person_data['hand_under_clothes_duration'] = 0
-                            if 'hand_under_clothes' in self.person_data['suspicious_start_times']:
-                                del self.person_data['suspicious_start_times']['hand_under_clothes']
-                            if 'hand_under_clothes' in self.person_data['alerted']:
-                                self.person_data['alerted'].remove('hand_under_clothes')
+                                pos_x, pos_y = int(position_3d[0] * w), int(position_3d[1] * h - 60)
 
-                        if any(behaviors.values()):
-                            detection_data = {
-                                'timestamp': current_time,
-                                'behaviors': [b for b, detected in behaviors.items() if detected],
-                                'position_3d': position_3d.tolist(),
-                                'depth_info': depth_analysis['torso_depth'] if depth_analysis else position_3d[2],
-                                'hand_depth_analysis': {
-                                    'left_hand': depth_analysis['left_hand'] if depth_analysis else None,
-                                    'right_hand': depth_analysis['right_hand'] if depth_analysis else None,
-                                    'consistency': depth_analysis['consistency'] if depth_analysis else None
+                            hand_under_clothes_3d = self.detect_hand_under_clothes_3d(pose_results.pose_landmarks)
+
+                            if hand_under_clothes_3d:
+                                self.person_data['hand_under_clothes_frames'] += self.frame_skip
+                                self.person_data['hand_under_clothes_duration'] = self.person_data['hand_under_clothes_frames'] / fps
+
+                                if 'hand_under_clothes' not in self.person_data['suspicious_start_times']:
+                                    self.person_data['suspicious_start_times']['hand_under_clothes'] = current_time
+
+                                if (self.person_data['hand_under_clothes_frames'] > self.hand_under_clothes_frame_threshold and
+                                        self.person_data['hand_under_clothes_duration'] >= self.hand_under_clothes_time_threshold):
+                                    behaviors['hand_under_clothes'] = True
+
+                                    if 'hand_under_clothes' not in self.person_data['alerted']:
+                                        self.person_data['alerted'].add('hand_under_clothes')
+
+                                    h, w, _ = frame.shape
+                                    pos_x, pos_y = int(position_3d[0] * w), int(position_3d[1] * h - 90)
+                            else:
+                                # Reset counters si no se detecta
+                                self.person_data['hand_under_clothes_frames'] = 0
+                                self.person_data['hand_under_clothes_duration'] = 0
+                                if 'hand_under_clothes' in self.person_data['suspicious_start_times']:
+                                    del self.person_data['suspicious_start_times']['hand_under_clothes']
+                                if 'hand_under_clothes' in self.person_data['alerted']:
+                                    self.person_data['alerted'].remove('hand_under_clothes')
+
+                            if any(behaviors.values()):
+                                detection_data = {
+                                    'timestamp': current_time,
+                                    'behaviors': [b for b, detected in behaviors.items() if detected],
+                                    'position_3d': position_3d.tolist(),
+                                    'depth_info': depth_analysis['torso_depth'] if depth_analysis else position_3d[2],
+                                    'hand_depth_analysis': {
+                                        'left_hand': depth_analysis['left_hand'] if depth_analysis else None,
+                                        'right_hand': depth_analysis['right_hand'] if depth_analysis else None,
+                                        'consistency': depth_analysis['consistency'] if depth_analysis else None
+                                    }
                                 }
-                            }
-                            detections.append(detection_data)
+                                detections.append(detection_data)
 
-                        # Dibujar landmarks
-                        self.mp_drawing.draw_landmarks(output_frame, pose_results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
+                            # Dibujar landmarks
+                            self.mp_drawing.draw_landmarks(output_frame, pose_results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS)
 
-                        if hand_results.multi_hand_landmarks:
-                            for hand_landmarks in hand_results.multi_hand_landmarks:
-                                self.mp_drawing.draw_landmarks(output_frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+                            if hand_results.multi_hand_landmarks:
+                                for hand_landmarks in hand_results.multi_hand_landmarks:
+                                    self.mp_drawing.draw_landmarks(output_frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
 
-                        if face_results.multi_face_landmarks:
-                            for face_landmarks in face_results.multi_face_landmarks:
-                                self.mp_drawing.draw_landmarks(output_frame, face_landmarks, mp.solutions.face_mesh.FACEMESH_CONTOURS)
+                            if face_results.multi_face_landmarks:
+                                for face_landmarks in face_results.multi_face_landmarks:
+                                    self.mp_drawing.draw_landmarks(output_frame, face_landmarks, mp.solutions.face_mesh.FACEMESH_CONTOURS)
 
-                    num_people = 1 if pose_results.pose_landmarks else 0
-                    cv2.putText(output_frame, f"Personas: {num_people}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        num_people = 1 if pose_results.pose_landmarks else 0
+                        cv2.putText(output_frame, f"Personas: {num_people}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    else:
+                        if self.with_camera:
+                            cap.release()
 
                 _, buffer = cv2.imencode('.jpg', output_frame)
                 jpg_b64 = base64.b64encode(buffer).decode('utf-8')
@@ -686,13 +694,20 @@ class BehaviorDetector3D:
                     'frame': jpg_b64,
                     'progress': f"{round(frame_idx / total_frames * 100)}",
                     'detections': list(detections[-1]['behaviors']) if detections else None
+                } if not self.with_camera else {
+                    'frame': jpg_b64,
+                    'detections': list(detections[-1]['behaviors']) if detections else None
                 }
 
-                out.write(output_frame)
+                if not self.with_camera:
+                    out.write(output_frame)
+
                 yield frame_data
             
             yield detections
             
         finally:
             cap.release()
-            out.release()
+
+            if not self.with_camera:
+                out.release()
