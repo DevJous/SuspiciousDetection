@@ -427,8 +427,9 @@ class BehaviorDetector:
 
                 if not self.with_camera:
                     out.write(output_frame)
-
-                yield frame_data
+                    
+                if process_this_frame:
+                    yield frame_data
 
             yield detections
         finally:
