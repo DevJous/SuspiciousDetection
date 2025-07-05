@@ -68,13 +68,13 @@ class BehaviorDetector3D:
         self.gaze_time_window = 4.0
         self.hand_under_clothes_frame_threshold = 15
         self.hand_under_clothes_time_threshold = 1.5
-        self.arm_angle_threshold_min = 85
-        self.arm_angle_threshold_max = 145
+        self.arm_angle_threshold_min = 100
+        self.arm_angle_threshold_max = 140
         self.confidence_threshold = 0.65
         
         # Umbrales de profundidad ajustados
         self.depth_threshold_behind = 0.08  # Manos claramente detrás del torso
-        self.depth_threshold_front = 0.04   # Manos claramente delante del torso
+        self.depth_threshold_front = 0.05   # Manos claramente delante del torso
         self.depth_consistency_threshold = 0.65
         self.torso_depth_variance_threshold = 0.025
         
@@ -290,126 +290,76 @@ class BehaviorDetector3D:
         return left_behind or right_behind
 
     def detect_hand_under_clothes_3d(self, pose_landmarks, hand_landmarks):
-        """Detección mejorada de manos bajo ropa (SOLO DELANTE del cuerpo)"""
-        if pose_landmarks is None:
-            return False
-        
-        # Solo detectar si las manos están visibles
-        if hand_landmarks is None or len(hand_landmarks) == 0:
+        """Detección de manos en posición de bolsillos delanteros"""
+        if pose_landmarks is None or hand_landmarks is None or len(hand_landmarks) == 0:
+            self.person_data['hand_under_clothes_frames'] = 0
             return False
 
-        # Función mejorada para verificar landmarks válidos
-        def is_valid(landmark):
-            return landmark is not None and hasattr(landmark, 'visibility') and landmark.visibility > self.confidence_threshold
-
-        # Obtener landmarks con verificación
-        left_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER] if is_valid(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER]) else None
-        left_elbow = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_ELBOW] if is_valid(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_ELBOW]) else None
-        left_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_WRIST] if is_valid(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_WRIST]) else None
-        
-        right_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER] if is_valid(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]) else None
-        right_elbow = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_ELBOW] if is_valid(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_ELBOW]) else None
-        right_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_WRIST] if is_valid(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_WRIST]) else None
-
-        # Obtener posiciones 3D solo para landmarks válidos
-        left_shoulder_3d = self.get_3d_position(left_shoulder) if left_shoulder else None
-        left_elbow_3d = self.get_3d_position(left_elbow) if left_elbow else None
-        left_wrist_3d = self.get_3d_position(left_wrist) if left_wrist else None
-        
-        right_shoulder_3d = self.get_3d_position(right_shoulder) if right_shoulder else None
-        right_elbow_3d = self.get_3d_position(right_elbow) if right_elbow else None
-        right_wrist_3d = self.get_3d_position(right_wrist) if right_wrist else None
-
-        # Calcular torso depth y centro
-        torso_depth = self.get_torso_depth_reference(pose_landmarks)
-        
-        # Verificación segura del centro del torso
-        if left_shoulder_3d is None or right_shoulder_3d is None:
-            torso_center_3d = None
-        else:
-            torso_center_3d = np.mean([left_shoulder_3d, right_shoulder_3d], axis=0)
-        
-        # Función para analizar cada brazo
-        def analyze_arm(shoulder_3d, elbow_3d, wrist_3d, torso_center, torso_depth, hand_landmarks, is_left=True):
-            # Verificación segura de None (forma correcta para arrays NumPy)
-            if (shoulder_3d is None or elbow_3d is None or 
-                wrist_3d is None or torso_center is None):
-                return False
-                
-            try:
-                # 1. Calcular ángulo del brazo
-                v1 = shoulder_3d - elbow_3d
-                v2 = wrist_3d - elbow_3d
-                arm_angle = self.calculate_3d_angle(v1, v2)
-                
-                # 2. Verificar ángulo sospechoso
-                if not (self.arm_angle_threshold_min <= arm_angle <= self.arm_angle_threshold_max):
-                    return False
-                
-                # 3. Obtener posición de la mano visible
-                hand_pos = None
-                shoulder_mid_x = torso_center[0]
-                
-                for hand_lm in hand_landmarks:
-                    hand_center = np.mean([self.get_3d_position(lm) for lm in hand_lm.landmark], axis=0)
-                    if (is_left and hand_center[0] < shoulder_mid_x) or (not is_left and hand_center[0] >= shoulder_mid_x):
-                        hand_pos = hand_center
-                        break
-                
-                if hand_pos is None:
-                    return False
-                    
-                # 4. Verificar que la mano está DELANTE del torso
-                hand_depth_diff = torso_depth - hand_pos[2]  # Positivo = delante
-                if hand_depth_diff < self.depth_threshold_front:
-                    return False
-                    
-                # 5. Verificar proximidad al torso
-                horizontal_distance = np.linalg.norm(np.array([
-                    hand_pos[0] - torso_center[0], 
-                    hand_pos[1] - torso_center[1]
-                ]))
-                if horizontal_distance > 0.25:
-                    return False
-                    
-                # 6. Verificar posición vertical
-                vertical_diff = abs(hand_pos[1] - torso_center[1])
-                if vertical_diff > 0.3:
-                    return False
-                    
-                # 7. Verificar dirección del antebrazo
-                forearm_vector = wrist_3d - elbow_3d
-                to_torso_vector = torso_center - elbow_3d
-                
-                if np.linalg.norm(forearm_vector) > 0 and np.linalg.norm(to_torso_vector) > 0:
-                    forearm_dir = forearm_vector / np.linalg.norm(forearm_vector)
-                    to_torso_dir = to_torso_vector / np.linalg.norm(to_torso_vector)
-                    if np.dot(forearm_dir, to_torso_dir) < 0.3:
-                        return False
-                
-                # Si pasa todas las verificaciones, es sospechoso
-                return True
-                
-            except Exception as e:
-                print(f"Error analyzing arm: {str(e)}")
-                return False
-        
-        # Analizar ambos brazos solo si tenemos centro del torso
-        left_detected = False
-        right_detected = False
-        
-        if torso_center_3d is not None:
-            left_detected = analyze_arm(
-                left_shoulder_3d, left_elbow_3d, left_wrist_3d, 
-                torso_center_3d, torso_depth, hand_landmarks, True
-            )
+        try:
+            # Landmarks clave para el torso (con verificación None)
+            left_shoulder = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER])
+            right_shoulder = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER])
+            left_hip = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP])
+            right_hip = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP])
             
-            right_detected = analyze_arm(
-                right_shoulder_3d, right_elbow_3d, right_wrist_3d,
-                torso_center_3d, torso_depth, hand_landmarks, False
-            )
+            # Verificar si alguno es None (forma correcta para arrays numpy)
+            if any(x is None for x in [left_shoulder, right_shoulder, left_hip, right_hip]):
+                return False
+                
+            # Puntos de referencia para la zona de bolsillos delanteros
+            torso_center = (left_shoulder + right_shoulder) / 2
+            hip_center = (left_hip + right_hip) / 2
+            belly_point = torso_center + (hip_center - torso_center) * 0.5  # 30% hacia abajo
+            
+            # Área de detección
+            pocket_zone_width = abs(left_shoulder[0] - right_shoulder[0]) * 0.3
+            pocket_zone_height = abs(torso_center[1] - hip_center[1]) * 0.5
+            
+        except (AttributeError, KeyError):
+            return False
+
+        detection_found = False
         
-        return left_detected or right_detected
+        for hand_lm in hand_landmarks:
+            hand_center = np.mean([self.get_3d_position(lm) for lm in hand_lm.landmark], axis=0)
+            
+            # 1. Verificar posición horizontal
+            within_width = abs(hand_center[0] - belly_point[0]) < pocket_zone_width
+            
+            # 2. Verificar posición vertical
+            within_height = (hip_center[1] > hand_center[1] > belly_point[1])
+            
+            # 3. Verificar profundidad
+            torso_depth = np.mean([left_shoulder[2], right_shoulder[2], left_hip[2], right_hip[2]])
+            in_front = hand_center[2] < torso_depth - 0.03
+            
+            # 4. Verificar ángulo del codo
+            elbow = None
+            if hand_center[0] < belly_point[0]:  # Mano izquierda
+                elbow_pos = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_ELBOW]
+            else:  # Mano derecha
+                elbow_pos = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_ELBOW]
+                
+            elbow = self.get_3d_position(elbow_pos) if elbow_pos else None
+            good_angle = True  # Por defecto en caso de no tener codo
+            
+            if elbow is not None:
+                shoulder_ref = left_shoulder if hand_center[0] < belly_point[0] else right_shoulder
+                v1 = elbow - shoulder_ref
+                v2 = hand_center - elbow
+                angle = self.calculate_3d_angle(v1, v2)
+                good_angle = 60 < angle < 120
+
+            # print("----------------------------------------------------------------------")
+            # print("within_width: " + str(within_width) + "\nwithin_height:" + str(within_height) + "\nin_front: " + str(in_front) + "\ngood_angle: " + str(good_angle))
+            if within_width and within_height and good_angle:
+                detection_found = True
+                break
+
+        if detection_found:
+                return True
+        
+        return False
 
     def detect_excessive_gaze_3d(self, face_landmarks, pose_landmarks, frame_shape, current_time):
         if face_landmarks is None and pose_landmarks is None:
@@ -629,6 +579,9 @@ class BehaviorDetector3D:
                             pose_results.pose_landmarks, 
                             multi_hand_landmarks
                         )
+                        if hand_under_clothes_3d:
+                            print(hand_under_clothes_3d)
+
                         if hand_under_clothes_3d:
                             self.person_data['hand_under_clothes_frames'] += self.frame_skip
                             self.person_data['hand_under_clothes_duration'] = self.person_data['hand_under_clothes_frames'] / fps
