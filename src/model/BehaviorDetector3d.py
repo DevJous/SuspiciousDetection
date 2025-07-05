@@ -67,7 +67,7 @@ class BehaviorDetector3D:
         self.gaze_changes_threshold = 6
         self.gaze_time_window = 4.0
         self.hand_under_clothes_frame_threshold = 15
-        self.hand_under_clothes_time_threshold = 1.5
+        self.hand_under_clothes_time_threshold = 2
         self.arm_angle_threshold_min = 100
         self.arm_angle_threshold_max = 140
         self.confidence_threshold = 0.65
@@ -579,9 +579,7 @@ class BehaviorDetector3D:
                             pose_results.pose_landmarks, 
                             multi_hand_landmarks
                         )
-                        if hand_under_clothes_3d:
-                            print(hand_under_clothes_3d)
-
+                        
                         if hand_under_clothes_3d:
                             self.person_data['hand_under_clothes_frames'] += self.frame_skip
                             self.person_data['hand_under_clothes_duration'] = self.person_data['hand_under_clothes_frames'] / fps
