@@ -597,18 +597,10 @@ class BehaviorDetector3D:
 
                         # Registrar detecciones
                         if any(behaviors.values()):
-                            detection_data = {
+                            detections.append({
                                 'timestamp': current_time,
-                                'behaviors': [b for b, detected in behaviors.items() if detected],
-                                'position_3d': position_3d.tolist() if position_3d is not None else [0, 0, 0],
-                                'depth_info': depth_analysis['torso_depth'] if depth_analysis else 0.0,
-                                'hand_depth_analysis': {
-                                    'left_hand': depth_analysis.get('left_hand', None) if depth_analysis else None,
-                                    'right_hand': depth_analysis.get('right_hand', None) if depth_analysis else None,
-                                    'consistency': depth_analysis.get('consistency', None) if depth_analysis else None
-                                }
-                            }
-                            detections.append(detection_data)
+                                'behaviors': [b for b, detected in behaviors.items() if detected]
+                            })
 
                         # Dibujar landmarks
                         self.draw_landmarks_optimized(output_frame, pose_results, hand_results, face_results)
