@@ -25,35 +25,35 @@
                     <label for="video-file" class="form-label">Seleccionar archivo de video:</label>
                     <input class="form-control" type="file" id="video-file" accept="video/*" required>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="menu-btns">
                     <button type="submit" class="btn btn-success" id="upload-btn">
                         <i class="fa-solid fa-check"></i>Procesar video</button>
-                    <div class="dropdown1 d-inline-block" id="dd1">
-                        <button class="btn btn-info dropdown-toggle" type="button" id="dropdown1"
-                            data-toggle="dropdown" aria-expanded="false">
-                            <i class="fa-solid fa-sliders"></i> Analizar cada: 3 frames
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="dropdown1">
-                            <li><a class="dropdown-item" href="#">Sin saltos de frames</a></li>
-                            <li><a class="dropdown-item" href="#">1 frame</a></li>
-                            <li><a class="dropdown-item" href="#">2 frames</a></li>
-                            <li><a class="dropdown-item" href="#">3 frames (Por defecto)</a></li>
-                            <li><a class="dropdown-item" href="#">4 frames</a></li>
-                            <li><a class="dropdown-item" href="#">5 frames</a></li>
-                        </ul>
+                    <div class="d-flex gap-2">
+                        <div class="dropdown1 d-inline-block" id="dd1">
+                            <button class="btn btn-info dropdown-toggle" type="button" id="dropdown1"
+                                data-toggle="dropdown" aria-expanded="false">
+                                <i class="fa-solid fa-sliders"></i> Analizar cada: 3 frames
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="dropdown1">
+                                <li><a class="dropdown-item" href="#">Sin saltos de frames</a></li>
+                                <li><a class="dropdown-item" href="#">1 frame</a></li>
+                                <li><a class="dropdown-item" href="#">2 frames</a></li>
+                                <li><a class="dropdown-item" href="#">3 frames (Por defecto)</a></li>
+                                <li><a class="dropdown-item" href="#">4 frames</a></li>
+                                <li><a class="dropdown-item" href="#">5 frames</a></li>
+                            </ul>
+                        </div>
+                        <div class="dropdown2 d-inline-block" id="dd2">
+                            <button class="btn btn-warning dropdown-toggle" type="button" id="dropdown2"
+                                data-toggle="dropdown" aria-expanded="false">
+                                <i class="fa-solid fa-male"></i> Estimación postural: 2D
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="dropdown2">
+                                <li><a class="dropdown-item" href="#">2D</a></li>
+                                <li><a class="dropdown-item" href="#">3D</a></li>
+                            </ul>
+                        </div>
                     </div>
-
-                    <div class="dropdown2 d-inline-block" id="dd2">
-                        <button class="btn btn-warning dropdown-toggle" type="button" id="dropdown2"
-                            data-toggle="dropdown" aria-expanded="false">
-                            <i class="fa-solid fa-male"></i> Estimación postural: 2D
-                        </button>
-                        <ul class="dropdown-menu" aria-labelledby="dropdown2">
-                            <li><a class="dropdown-item" href="#">2D</a></li>
-                            <li><a class="dropdown-item" href="#">3D</a></li>
-                        </ul>
-                    </div>
-
                     <button class="btn btn-secondary" id="reupload-btn">
                         <i class="fa-solid fa-refresh"></i> Procesar nuevo video</button>
                 </div>
@@ -61,12 +61,11 @@
                     <span class="d-flex mt-2 align-items-center small">
                         <i class="fa-solid fa-exclamation-triangle" aria-hidden="true"></i>
                         <label>¡Aviso! Reducir o quitar el salto de frames aumenta la carga computacional y alarga los
-                            tiempos
-                            de espera.</label>
+                            tiempos de espera.</label>
                     </span>
                 </div>
                 <div id="progress-container">
-                    <p>Procesando video... Esto puede tomar algunos minutos dependiendo del tamaño del video.</p>
+                    <p id="progress-text">Procesando video... Esto puede tomar algunos minutos dependiendo del tamaño del video.</p>
                     <div class="progress"><!--Aqui se ingresa la barra de progreso desde js--></div>
                 </div>
         </div>
@@ -109,7 +108,7 @@
                                 <div id="labels-info" class="d-flex flex-column mt-1 small">
                                     <label><i class="fa-solid fa-hand-paper"></i>Manos ocultas</label>
                                     <label><i class="fa-solid fa-eye"></i>Giros bruscos de cabeza</label>
-                                    <label><i class="fa-solid fa-camera"></i>Acercamiento sospechoso</label>
+                                    <label><i class="fa-solid fa-hand-paper"></i>Mano sospechosa por delante</label>
                                 </div>
                             </div>
                             <img id="police-image" src="{{ url_for('static', filename='assets/police.jpg') }}"
@@ -120,7 +119,8 @@
                                     <div>
                                         <i class="fa-solid fa-check"></i>
                                         <span id="realtime-results-count">0</span> anomalía(s) detectada(s).
-                                        <div id="realtime-list" class="realtime-list-group" style="margin-left: 20px;"></div>
+                                        <div id="realtime-list" class="realtime-list-group" style="margin-left: 20px;">
+                                        </div>
                                         <div id="realtime-spinner">
                                             <div
                                                 class="text-center d-flex justify-content-center align-items-center gap-2 mt-2 mb-2">

@@ -51,7 +51,7 @@ from Resources.Conexion import get_connection
 from Resources.Encrypt import encrypt_password
 from model.BehaviorDetector import BehaviorDetector
 from model.BehaviorDetector3d import BehaviorDetector3D
-from Resources.Helper import get_work_path, get_processed_route, get_temp_route
+from Resources.Helper import get_work_path, get_processed_route, normalizeUrl
 
 # Inicializar la app Flask
 app = Flask(__name__, static_folder="static")
@@ -123,14 +123,6 @@ def live_detection():
 @app.route('/video-detection')
 def video_detection():
     return render_template('video-detection.html')
-
-@app.route('/new-detection')
-def new_detection():
-    return render_template('new-detection.html')
-
-@app.route('/results')
-def results():
-    return render_template('results.html')
 
 # endregion
 
@@ -1154,6 +1146,27 @@ def stream_frames(filename, frame_skip, dimension):
 
     return Response(generar(), mimetype='text/event-stream')
 
+
+@app.route('/camera_stream_frames/<frame_skip>/<dimension>/<connection>')
+def camera_stream_frames(frame_skip, dimension, connection):
+    def generar():
+        global detecciones_guardadas
+        detector = BehaviorDetector(frame_skip=int(frame_skip), connection=normalizeUrl(connection), with_camera=True) if dimension == '2D' else BehaviorDetector3D(frame_skip=int(frame_skip), connection=normalizeUrl(connection), with_camera=True)
+        
+        for result in detector.process_video(None, None):
+            if isinstance(result, list):  # Si es la lista de detecciones
+                detecciones_guardadas = result
+                yield "data: EOF\n\n"
+            else:  # Si es un frame en base64 (string) o un diccionario con frame+detecciones
+                if isinstance(result, dict):
+                    import json
+                    json_data = json.dumps(result)
+                    yield f"data: {json_data}\n\n"
+                else:
+                    # Si es solo un string (frame en base64)
+                    yield f"data: {result}\n\n"
+
+    return Response(generar(), mimetype='text/event-stream')
 
 @app.route('/detecciones')
 def get_detecciones():

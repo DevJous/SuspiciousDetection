@@ -204,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateProgressBar(percentage) {
+        if(percentage >= 100) document.getElementById('progress-text').style.display = 'none';
         progressBar.innerHTML = `<div class="progress-bar progress-bar-striped ${percentage >= 100 ? 'bg-success' : ''}" role="progressbar"
             style="width: ${percentage}%;" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100">${percentage}%</div>`;
     }

@@ -1,5 +1,6 @@
 import os
 import platform
+import string
 
 # Esto es modificable, a efectos de prueba se usa la ruta "Escritorio" de Windows y la
 # ruta "home" de Linux (dependiendo del SO detectado), pero no se recomienda para producción
@@ -44,3 +45,6 @@ def get_processed_route(child=None):
     
 def format_number(num, length=6):
     return str(num).zfill(length)
+
+def normalizeUrl(url:str):
+    return url.replace("{slash}", "/") if url != 'null' else None
