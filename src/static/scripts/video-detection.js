@@ -225,7 +225,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const minutes = Math.floor(deteccion.timestamp / 60);
             const seconds = Math.floor(deteccion.timestamp % 60);
-            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            const milliseconds = Math.floor((deteccion.timestamp % 1) * 1000);
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${milliseconds.toString().padStart(2, '0')}`;
+            //const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
             let behaviorsHTML = '';
             deteccion.behaviors.forEach(behavior => {
