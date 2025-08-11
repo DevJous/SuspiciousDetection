@@ -71,6 +71,9 @@ class BehaviorDetector3D:
         self.arm_angle_threshold_min = 100
         self.arm_angle_threshold_max = 140
         self.confidence_threshold = 0.65
+        # En tu clase, agregar:
+        self.position_consistency_threshold = 0.7  # Similar a depth_consistency_threshold
+        self.front_visibility_threshold = 0.3      # Más estricto que el normal
         
         # Umbrales de profundidad ajustados
         self.depth_threshold_behind = 0.08  # Manos claramente detrás del torso
@@ -290,76 +293,345 @@ class BehaviorDetector3D:
         return left_behind or right_behind
 
     def detect_hand_under_clothes_3d(self, pose_landmarks, hand_landmarks):
-        """Detección de manos en posición de bolsillos delanteros"""
-        if pose_landmarks is None or hand_landmarks is None or len(hand_landmarks) == 0:
-            self.person_data['hand_under_clothes_frames'] = 0
+        """Detección mejorada de manos ocultas TRAS LA ROPA (bolsillos delanteros)"""
+        if pose_landmarks is None:
             return False
+        
+        # Verificar primero si las manos están realmente ocultas
+        hands_visible = hand_landmarks is not None and len(hand_landmarks) > 0
+        
+        # Si las manos son visibles, NO pueden estar bajo la ropa
+        if hands_visible:
+            # Verificación adicional: manos parcialmente visibles con baja confianza
+            if not self.are_hands_significantly_hidden(hand_landmarks):
+                return False
 
+        # Solo analizar posición frontal si las manos están ocultas
+        front_analysis = self.analyze_hand_front_position(pose_landmarks, hand_landmarks)
+        consistency = front_analysis.get('consistency', {
+            'front_pocket': {'left': 0.0, 'right': 0.0},
+            'visible': {'left': 0.0, 'right': 0.0}
+        })
+        
+        # Manos ocultas DELANTE del cuerpo (en bolsillos/bajo ropa)
+        left_front_hidden = (front_analysis['left_hand']['front_pocket'] and 
+                            not front_analysis['left_hand']['visible'] and  # Exclusivamente oculta
+                            front_analysis['left_hand']['position_confidence'] > 0.6 and
+                            consistency['front_pocket']['left'] > self.position_consistency_threshold)
+        
+        right_front_hidden = (front_analysis['right_hand']['front_pocket'] and 
+                            not front_analysis['right_hand']['visible'] and  # Exclusivamente oculta
+                            front_analysis['right_hand']['position_confidence'] > 0.6 and
+                            consistency['front_pocket']['right'] > self.position_consistency_threshold)
+        
+        print("izquierdo: " + str(left_front_hidden))
+        print("derecho: " + str(right_front_hidden))
+
+        return left_front_hidden or right_front_hidden
+    
+    def check_hand_visibility(self, hand_landmarks, visibility_threshold=0.5):
+        """
+        Verifica si la mano está oculta basándose en la visibilidad de sus landmarks
+        
+        Args:
+            hand_landmarks: Landmarks de la mano de MediaPipe
+            visibility_threshold: Umbral de visibilidad (0.0 a 1.0)
+        
+        Returns:
+            dict: {
+                'is_hidden': bool,
+                'avg_visibility': float,
+                'visible_landmarks': int,
+                'total_landmarks': int
+            }
+        """
+        if not hand_landmarks or not hand_landmarks.landmark:
+            return {
+                'is_hidden': False,
+                'avg_visibility': 0.0,
+                'visible_landmarks': 0,
+                'total_landmarks': 0
+            }
+        
+        total_landmarks = len(hand_landmarks.landmark)
+        visible_count = 0
+        visibility_sum = 0.0
+        
+        # Landmarks clave de la mano para verificar visibilidad
+        key_landmarks = [
+            0,   # WRIST
+            4,   # THUMB_TIP
+            8,   # INDEX_FINGER_TIP
+            12,  # MIDDLE_FINGER_TIP
+            16,  # RING_FINGER_TIP
+            20   # PINKY_TIP
+        ]
+        
+        for i, landmark in enumerate(hand_landmarks.landmark):
+            # MediaPipe puede tener visibility como atributo
+            visibility = getattr(landmark, 'visibility', 1.0)  # Default 1.0 si no existe
+            visibility_sum += visibility
+            
+            if visibility > visibility_threshold:
+                visible_count += 1
+        
+        avg_visibility = visibility_sum / total_landmarks if total_landmarks > 0 else 0.0
+        
+        # Verificar landmarks clave específicamente
+        key_visibility_sum = 0.0
+        key_visible_count = 0
+        
+        for key_idx in key_landmarks:
+            if key_idx < len(hand_landmarks.landmark):
+                key_visibility = getattr(hand_landmarks.landmark[key_idx], 'visibility', 1.0)
+                key_visibility_sum += key_visibility
+                if key_visibility > visibility_threshold:
+                    key_visible_count += 1
+        
+        key_avg_visibility = key_visibility_sum / len(key_landmarks)
+        
+        # Consideramos la mano oculta si:
+        # 1. La visibilidad promedio general es baja Y
+        # 2. Los landmarks clave tienen baja visibilidad
+        is_hidden = (avg_visibility < visibility_threshold and 
+                    key_avg_visibility < visibility_threshold and 
+                    key_visible_count < len(key_landmarks) * 0.5)
+        
+        return {
+            'is_hidden': is_hidden,
+            'avg_visibility': avg_visibility,
+            'visible_landmarks': visible_count,
+            'total_landmarks': total_landmarks,
+            'key_visibility': key_avg_visibility,
+            'key_visible_count': key_visible_count
+        }
+
+    def are_hands_significantly_hidden(self, hand_landmarks, visibility_threshold=0.3):
+        """Verifica si las manos tienen visibilidad muy baja (parcialmente ocultas)"""
+        if not hand_landmarks or len(hand_landmarks) == 0:
+            return True  # Sin landmarks = completamente ocultas
+        
+        for hand_lm in hand_landmarks:
+            visibility_info = self.check_hand_visibility(hand_lm, visibility_threshold)
+            # Si alguna mano tiene alta visibilidad, no están significativamente ocultas
+            if not visibility_info['is_hidden']:
+                return False
+        
+        return True  # Todas las manos detectadas tienen baja visibilidad
+
+    def analyze_hand_front_position(self, pose_landmarks, hand_landmarks):
+        """Analiza la posición de las manos en relación al frente del cuerpo"""
         try:
-            # Landmarks clave para el torso (con verificación None)
+            # Obtener landmarks clave del torso
             left_shoulder = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER])
             right_shoulder = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER])
             left_hip = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP])
             right_hip = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP])
             
-            # Verificar si alguno es None (forma correcta para arrays numpy)
             if any(x is None for x in [left_shoulder, right_shoulder, left_hip, right_hip]):
-                return False
-                
-            # Puntos de referencia para la zona de bolsillos delanteros
+                return self.get_default_front_analysis()
+            
+            # Calcular puntos de referencia
             torso_center = (left_shoulder + right_shoulder) / 2
             hip_center = (left_hip + right_hip) / 2
-            belly_point = torso_center + (hip_center - torso_center) * 0.5  # 30% hacia abajo
-            
-            # Área de detección
-            pocket_zone_width = abs(left_shoulder[0] - right_shoulder[0]) * 0.3
-            pocket_zone_height = abs(torso_center[1] - hip_center[1]) * 0.5
-            
-        except (AttributeError, KeyError):
-            return False
-
-        detection_found = False
-        
-        for hand_lm in hand_landmarks:
-            hand_center = np.mean([self.get_3d_position(lm) for lm in hand_lm.landmark], axis=0)
-            
-            # 1. Verificar posición horizontal
-            within_width = abs(hand_center[0] - belly_point[0]) < pocket_zone_width
-            
-            # 2. Verificar posición vertical
-            within_height = (hip_center[1] > hand_center[1] > belly_point[1])
-            
-            # 3. Verificar profundidad
             torso_depth = np.mean([left_shoulder[2], right_shoulder[2], left_hip[2], right_hip[2]])
-            in_front = hand_center[2] < torso_depth - 0.03
             
-            # 4. Verificar ángulo del codo
-            elbow = None
-            if hand_center[0] < belly_point[0]:  # Mano izquierda
-                elbow_pos = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_ELBOW]
-            else:  # Mano derecha
-                elbow_pos = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_ELBOW]
-                
-            elbow = self.get_3d_position(elbow_pos) if elbow_pos else None
-            good_angle = True  # Por defecto en caso de no tener codo
+            # Definir zonas de bolsillos delanteros
+            pocket_zones = self.define_front_pocket_zones(left_shoulder, right_shoulder, left_hip, right_hip)
             
-            if elbow is not None:
-                shoulder_ref = left_shoulder if hand_center[0] < belly_point[0] else right_shoulder
-                v1 = elbow - shoulder_ref
-                v2 = hand_center - elbow
-                angle = self.calculate_3d_angle(v1, v2)
-                good_angle = 60 < angle < 120
+            analysis = {
+                'left_hand': self.analyze_single_hand_front_position(
+                    'left', pose_landmarks, hand_landmarks, pocket_zones, torso_depth
+                ),
+                'right_hand': self.analyze_single_hand_front_position(
+                    'right', pose_landmarks, hand_landmarks, pocket_zones, torso_depth
+                ),
+                'consistency': self.calculate_front_position_consistency()
+            }
+            
+            return analysis
+            
+        except Exception as e:
+            print(f"Error en analyze_hand_front_position: {e}")
+            return self.get_default_front_analysis()
 
-            # print("----------------------------------------------------------------------")
-            # print("within_width: " + str(within_width) + "\nwithin_height:" + str(within_height) + "\nin_front: " + str(in_front) + "\ngood_angle: " + str(good_angle))
-            if within_width and within_height and good_angle:
-                detection_found = True
-                break
-
-        if detection_found:
-                return True
+    def define_front_pocket_zones(self, left_shoulder, right_shoulder, left_hip, right_hip):
+        """Define las zonas donde se ubican típicamente los bolsillos delanteros"""
+        torso_center = (left_shoulder + right_shoulder) / 2
+        hip_center = (left_hip + right_hip) / 2
         
-        return False
+        # Zona de bolsillos delanteros (más abajo que el pecho, encima de las caderas)
+        front_zone_y_start = torso_center[1] + (hip_center[1] - torso_center[1]) * 0.3
+        front_zone_y_end = hip_center[1] - (hip_center[1] - torso_center[1]) * 0.1
+        
+        torso_width = abs(right_shoulder[0] - left_shoulder[0])
+        pocket_width = torso_width * 0.25  # Ancho de cada bolsillo
+        
+        return {
+            'left_pocket': {
+                'x_center': left_hip[0] + pocket_width * 0.5,
+                'y_range': (front_zone_y_start, front_zone_y_end),
+                'width': pocket_width,
+                'depth_threshold': -0.02  # Ligeramente hacia adelante del torso
+            },
+            'right_pocket': {
+                'x_center': right_hip[0] - pocket_width * 0.5,
+                'y_range': (front_zone_y_start, front_zone_y_end),
+                'width': pocket_width,
+                'depth_threshold': -0.02
+            }
+        }
+
+    def analyze_single_hand_front_position(self, side, pose_landmarks, hand_landmarks, pocket_zones, torso_depth):
+        """Analiza la posición de una mano específica en relación a los bolsillos delanteros"""
+        result = {
+            'front_pocket': False,
+            'visible': False,
+            'position_confidence': 0.0,
+            'estimated_position': None
+        }
+        
+        try:
+            # Si hay landmarks de mano visibles, analizarlos
+            if hand_landmarks and len(hand_landmarks) > 0:
+                for hand_lm in hand_landmarks:
+                    hand_center = np.mean([self.get_3d_position(lm) for lm in hand_lm.landmark], axis=0)
+                    
+                    # Determinar si es la mano correcta basándose en posición X
+                    is_correct_hand = self.is_correct_hand_side(hand_center, side, pocket_zones)
+                    if not is_correct_hand:
+                        continue
+                    
+                    # Verificar visibilidad
+                    visibility_info = self.check_hand_visibility(hand_lm)
+                    result['visible'] = not visibility_info['is_hidden']
+                    result['estimated_position'] = hand_center
+                    
+                    # Si es visible, no puede estar en bolsillo
+                    if result['visible']:
+                        result['position_confidence'] = 0.8
+                        return result
+            
+            # Para manos ocultas, estimar posición basándose en codo/hombro
+            estimated_pos = self.estimate_hidden_hand_position(pose_landmarks, side)
+            if estimated_pos is not None:
+                result['estimated_position'] = estimated_pos
+                
+                # Verificar si la posición estimada está en zona de bolsillo
+                pocket_zone = pocket_zones[f'{side}_pocket']
+                in_pocket = self.is_in_front_pocket_zone(estimated_pos, pocket_zone, torso_depth)
+                
+                if in_pocket:
+                    result['front_pocket'] = True
+                    result['position_confidence'] = 0.7
+                else:
+                    result['position_confidence'] = 0.3
+            
+            return result
+            
+        except Exception as e:
+            print(f"Error analizando mano {side}: {e}")
+            return result
+
+    def estimate_hidden_hand_position(self, pose_landmarks, side):
+        """Estima la posición de una mano oculta basándose en codo y hombro"""
+        try:
+            if side == 'left':
+                shoulder = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER])
+                elbow = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_ELBOW])
+            else:
+                shoulder = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER])
+                elbow = self.get_3d_position(pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_ELBOW])
+            
+            if shoulder is None or elbow is None:
+                return None
+            
+            # Estimar posición de mano basándose en dirección codo-hombro
+            arm_vector = elbow - shoulder
+            arm_length = np.linalg.norm(arm_vector)
+            
+            # Asumir que la mano está a una distancia similar del codo
+            forearm_length = arm_length * 0.8  # Estimación
+            
+            # Direccion del antebrazo (del codo hacia donde estaría la mano)
+            if abs(elbow[1] - shoulder[1]) > abs(elbow[0] - shoulder[0]):  # Movimiento más vertical
+                # Brazo hacia abajo (posible bolsillo)
+                hand_direction = np.array([0, 1, -0.1])  # Hacia abajo y ligeramente adelante
+            else:
+                # Brazo hacia el lado
+                hand_direction = arm_vector / arm_length
+            
+            estimated_hand = elbow + hand_direction * forearm_length
+            return estimated_hand
+            
+        except Exception:
+            return None
+
+    def is_in_front_pocket_zone(self, position, pocket_zone, torso_depth):
+        """Verifica si una posición está dentro de la zona de bolsillo delantero"""
+        if position is None:
+            return False
+        
+        # Verificar posición horizontal
+        x_distance = abs(position[0] - pocket_zone['x_center'])
+        within_width = x_distance < pocket_zone['width']
+        
+        # Verificar posición vertical
+        within_height = pocket_zone['y_range'][0] < position[1] < pocket_zone['y_range'][1]
+        
+        # Verificar profundidad (debe estar cerca del frente del cuerpo)
+        depth_diff = position[2] - torso_depth
+        within_depth = depth_diff < pocket_zone['depth_threshold']
+        
+        return within_width and within_height and within_depth
+
+    def is_correct_hand_side(self, hand_center, expected_side, pocket_zones):
+        """Determina si una mano detectada corresponde al lado esperado"""
+        left_pocket_x = pocket_zones['left_pocket']['x_center']
+        right_pocket_x = pocket_zones['right_pocket']['x_center']
+        
+        distance_to_left = abs(hand_center[0] - left_pocket_x)
+        distance_to_right = abs(hand_center[0] - right_pocket_x)
+        
+        closest_side = 'left' if distance_to_left < distance_to_right else 'right'
+        return closest_side == expected_side
+
+    def calculate_front_position_consistency(self):
+        """Calcula la consistencia de detección a lo largo del tiempo"""
+        # Implementar lógica similar a tu sistema de consistencia existente
+        # pero para posiciones frontales
+        if not hasattr(self, 'front_position_history'):
+            self.front_position_history = {
+                'left': {'front_pocket': [], 'visible': []},
+                'right': {'front_pocket': [], 'visible': []}
+            }
+        
+        # Retornar valores por defecto o implementar cálculo real
+        return {
+            'front_pocket': {'left': 0.8, 'right': 0.8},
+            'visible': {'left': 0.2, 'right': 0.2}
+        }
+
+    def get_default_front_analysis(self):
+        """Retorna análisis por defecto en caso de error"""
+        return {
+            'left_hand': {
+                'front_pocket': False,
+                'visible': False,
+                'position_confidence': 0.0,
+                'estimated_position': None
+            },
+            'right_hand': {
+                'front_pocket': False,
+                'visible': False,
+                'position_confidence': 0.0,
+                'estimated_position': None
+            },
+            'consistency': {
+                'front_pocket': {'left': 0.0, 'right': 0.0},
+                'visible': {'left': 0.0, 'right': 0.0}
+            }
+        }
 
     def detect_excessive_gaze_3d(self, face_landmarks, pose_landmarks, frame_shape, current_time):
         if face_landmarks is None and pose_landmarks is None:
